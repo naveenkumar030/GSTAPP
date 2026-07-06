@@ -1,0 +1,92 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+  
+  --color-primary-navy: #0F172A;
+  --color-sidebar-bg: #111827;
+  --color-primary-blue: #2563EB;
+  --color-blue-hover: #1D4ED8;
+  --color-page-bg: #F8FAFC;
+  --color-card-bg: #FFFFFF;
+  --color-primary-text: #0F172A;
+  --color-secondary-text: #64748B;
+  --color-border-subtle: #E2E8F0;
+  
+  --color-success: #16A34A;
+  --color-success-bg: #DCFCE7;
+  --color-warning: #F59E0B;
+  --color-warning-bg: #FEF3C7;
+  --color-danger: #DC2626;
+  --color-danger-bg: #FEE2E2;
+  --color-fraud-highlight: #7C3AED;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--color-page-bg);
+  color: var(--color-primary-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Material Icons Outlined */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined' !important;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Shadows */
+.shadow-soft {
+  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+}
+
+.shadow-hover {
+  box-shadow: 0 4px 6px -1px rgba(15,23,42,0.1), 0 2px 4px -1px rgba(15,23,42,0.06);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-subtle);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-secondary-text);
+}
+
+/* Custom Nav Links */
+.nav-link {
+  transition: all 150ms ease-in-out;
+}
+.nav-link.active {
+  background-color: rgba(37, 99, 235, 0.1);
+  color: var(--color-primary-blue);
+  font-weight: 600;
+}
+.nav-link.active .nav-icon {
+  color: var(--color-primary-blue);
+}
+.nav-link:not(.active):hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
