@@ -8,8 +8,11 @@ import {
 } from 'lucide-react';
 
 const driver = neo4j.driver(
-  'neo4j+s://cb1ca217.databases.neo4j.io',
-  neo4j.auth.basic('cb1ca217', 'YTdQZ9KwEh3QkZC4sMXod4m4QkKiWgFnL0_2gT9lV_4')
+  import.meta.env.VITE_NEO4J_URI || 'neo4j+s://cb1ca217.databases.neo4j.io',
+  neo4j.auth.basic(
+    import.meta.env.VITE_NEO4J_USERNAME || 'cb1ca217', 
+    import.meta.env.VITE_NEO4J_PASSWORD || ''
+  )
 );
 
 export default function Graph() {
