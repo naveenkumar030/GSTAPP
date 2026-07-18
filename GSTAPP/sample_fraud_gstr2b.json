@@ -1,0 +1,26 @@
+[
+  {
+    "supplier": "Double Claim Corp",
+    "gstin": "29DUPL7777D2Z2",
+    "invoice_no": "INV-DUP-100",
+    "date": "11-Mar-26",
+    "taxable_value": 50000,
+    "tax_amount": 9000
+  },
+  {
+    "supplier": "Mismatch Services",
+    "gstin": "36MISM8888M3Z3",
+    "invoice_no": "INV-MIS-200",
+    "date": "12-Mar-26",
+    "taxable_value": 20000,
+    "tax_amount": 100
+  },
+  {
+    "supplier": "Good Supplier",
+    "gstin": "29GOOD1111G1Z1",
+    "invoice_no": "INV-OK-300",
+    "date": "13-Mar-26",
+    "taxable_value": 10000,
+    "tax_amount": 1800
+  }
+]

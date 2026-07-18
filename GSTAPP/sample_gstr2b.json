@@ -1,0 +1,34 @@
+[
+  {
+    "supplier": "ABC Traders",
+    "gstin": "29AABCT1332L1Z",
+    "invoice_no": "INV-0000001",
+    "date": "01-Jan-25",
+    "taxable_value": 1000,
+    "tax_amount": 50
+  },
+  {
+    "supplier": "XYZ Pvt Ltd",
+    "gstin": "27AADCB2230M1",
+    "invoice_no": "INV-0000002",
+    "date": "02-Jan-25",
+    "taxable_value": 8900,
+    "tax_amount": 1068
+  },
+  {
+    "supplier": "TechCorp India Pvt",
+    "gstin": "36AAACT2727Q1Z",
+    "invoice_no": "INV-0000003",
+    "date": "03-Jan-25",
+    "taxable_value": 16800,
+    "tax_amount": 2000
+  },
+  {
+    "supplier": "Bharat Industrial S",
+    "gstin": "33AACCB5577D1Z",
+    "invoice_no": "INV-0000005",
+    "date": "05-Jan-25",
+    "taxable_value": 32600,
+    "tax_amount": 1630
+  }
+]
