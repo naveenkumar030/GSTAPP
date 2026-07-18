@@ -1,0 +1,4 @@
+supplier name,gstin,invoice no,date,taxable value,tax amount
+Apex Suppliers,27APEX9999F1Z1,INV-101,10 Mar 2026,10000,1800
+Apex Suppliers,27APEX9999F1Z1,INV-102,11 Mar 2026,20000,3600
+Good Clean Corp,29GOOD1111G1Z1,INV-201,12 Mar 2026,5000,900

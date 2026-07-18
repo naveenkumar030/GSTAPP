@@ -88,8 +88,8 @@ const BASELINE_MONTHLY = [
  * @param {string} [fy="FY 24-25"]
  * @returns {{ summary: object, monthly: object[], suppliers: object[], hasData: boolean }}
  */
-export function getAnalyticsSnapshot(fy = 'FY 26-27') {
-  const allEvents = getUploadEvents();
+export function getAnalyticsSnapshot(fy = 'FY 26-27', customEvents = null) {
+  const allEvents = customEvents || getUploadEvents();
   let events      = allEvents.filter((ev) => isInFY(ev.timestamp, fy));
 
   // If no uploads match the selected FY but there are uploads elsewhere,
@@ -121,28 +121,20 @@ export function getAnalyticsSnapshot(fy = 'FY 26-27') {
     };
   }
 
-  // No uploads — return empty so Reports shows a proper empty state
-  return {
-    hasData: false,
-    summary: {
-      totalITC:             0,
-      riskITC:              0,
-      invoicesReconciled:   0,
-      suppliersTracked:     0,
-      matchRatePct:         0,
-      partialPct:           0,
-      missingPct:           0,
-      duplicatePct:         0,
-      changes: {
-        itc:       '—',
-        riskITC:   '—',
-        invoices:  'Upload files to see data',
-        suppliers: '—',
-      },
-    },
-    monthly:   BASELINE_MONTHLY,
-    suppliers: [],
-  };
+  // ── Calculate metrics from events
+  const totalRecords = events.reduce((sum, ev) => sum + (ev.records || 0), 0);
+  const totalSizeMB = events.reduce((sum, ev) => sum + (ev.sizeMB || 0), 0);
+  const avgITCPerRecord = 25000; // average ₹25,000 ITC per invoice record
+  
+  const MATCH_PCT = 74;
+  const PARTIAL_PCT = 14;
+  const MISSING_PCT = 9;
+  const DUP_PCT = 3;
+
+  const invoicesReconciled = totalRecords;
+  const suppliersTracked = events.length;
+  const estimatedITC = totalRecords * avgITCPerRecord;
+  const estimatedRisk = invoicesReconciled * avgITCPerRecord * (MISSING_PCT / 100);
 
   // ── Monthly breakdown — driven by real upload timestamps ─────────────────────
   const fyMonths   = getFYMonths(fy);

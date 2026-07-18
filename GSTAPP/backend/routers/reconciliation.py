@@ -21,10 +21,16 @@ from fastapi.responses import JSONResponse
 import openpyxl
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
-from utils import upload_file_to_s3_async, get_user_email
+from utils import upload_file_to_s3_async, download_file_from_s3_async, delete_file_from_s3_async, get_user_email
+from neo4j import GraphDatabase
 
 # ── Environment ───────────────────────────────────────────────────────────────
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+
+NEO4J_URI = os.getenv("NEO4J_URI")
+NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+NEO4J_DATABASE = os.getenv("NEO4J_DATABASE")
 
 MONGODB_URI = os.getenv("MONGODB_URI")
 if not MONGODB_URI:
@@ -152,6 +158,15 @@ def parse_purchase_register_csv(file_bytes: bytes) -> list[dict]:
             rec["tax_amount"] = float(rec.get("tax_amount") or 0)
         except (ValueError, TypeError):
             rec["tax_amount"] = 0.0
+        # Combine IGST, CGST, SGST if tax_amount is not set or is 0
+        if not rec.get("tax_amount"):
+            try:
+                igst = float(rec.get("igst") or 0)
+                cgst = float(rec.get("cgst") or 0)
+                sgst = float(rec.get("sgst") or 0)
+                rec["tax_amount"] = igst + cgst + sgst
+            except (ValueError, TypeError):
+                pass
         try:
             rec["taxable_value"] = float(rec.get("taxable_value") or 0)
         except (ValueError, TypeError):
@@ -188,10 +203,16 @@ def parse_gstr2b_json(file_bytes: bytes) -> list[dict]:
                 inv_date = inv.get("idt", "")
                 taxable = float(inv.get("val", 0) or 0)
                 tax_amount = 0.0
-                for item in inv.get("items", []):
-                    tax_amount += float(item.get("igst", 0) or 0)
-                    tax_amount += float(item.get("cgst", 0) or 0)
-                    tax_amount += float(item.get("sgst", 0) or 0)
+                items = inv.get("items") or inv.get("itms") or []
+                for item in items:
+                    # Try direct tax_amount first
+                    item_tax = float(item.get("tax_amount") or item.get("tax_amt") or item.get("tax") or 0)
+                    if item_tax > 0:
+                        tax_amount += item_tax
+                    else:
+                        tax_amount += float(item.get("igst") or item.get("iamt") or 0)
+                        tax_amount += float(item.get("cgst") or item.get("camt") or 0)
+                        tax_amount += float(item.get("sgst") or item.get("samt") or 0)
                 if gstin and inv_no:
                     invoices.append({
                         "supplier": sup_name,
@@ -241,6 +262,15 @@ def parse_gstr2b_json(file_bytes: bytes) -> list[dict]:
             rec["tax_amount"] = float(rec.get("tax_amount") or 0)
         except (ValueError, TypeError):
             rec["tax_amount"] = 0.0
+        # Combine IGST, CGST, SGST if tax_amount is not set or is 0
+        if not rec.get("tax_amount"):
+            try:
+                igst = float(rec.get("igst") or 0)
+                cgst = float(rec.get("cgst") or 0)
+                sgst = float(rec.get("sgst") or 0)
+                rec["tax_amount"] = igst + cgst + sgst
+            except (ValueError, TypeError):
+                pass
         try:
             rec["taxable_value"] = float(rec.get("taxable_value") or 0)
         except (ValueError, TypeError):
@@ -251,11 +281,158 @@ def parse_gstr2b_json(file_bytes: bytes) -> list[dict]:
     return invoices
 
 
+def check_gstins_in_neo4j(gstins: list[str]) -> dict:
+    """
+    Query Neo4j for a list of GSTINs and return their risk profiles.
+    Supports robust naming conventions (riskScore/risk_score/score, fraudType/fraud_type/reason).
+    """
+    if not NEO4J_URI or not NEO4J_USERNAME or not NEO4J_PASSWORD:
+        logger.warning("Neo4j is not configured in environment variables.")
+        return {}
+
+    risk_profiles = {}
+    try:
+        # Use a short connection timeout to prevent hanging the request if offline
+        driver = GraphDatabase.driver(
+            NEO4J_URI,
+            auth=(NEO4J_USERNAME, NEO4J_PASSWORD),
+            connection_timeout=5.0,
+            max_connection_lifetime=30.0
+        )
+        driver.verify_connectivity()
+
+        # Normalize GSTIN list for query
+        gstin_list = [g.strip().upper() for g in gstins if g]
+        if not gstin_list:
+            driver.close()
+            return {}
+
+        db_name = NEO4J_DATABASE or "neo4j"
+        with driver.session(database=db_name) as session:
+            # Query matching nodes by gstin, id, or name case-insensitively, coalescing naming conventions
+            query = """
+            UNWIND $gstins AS gstin_val
+            MATCH (n)
+            WHERE toUpper(n.gstin) = toUpper(gstin_val) 
+               OR toUpper(n.id) = toUpper(gstin_val) 
+               OR toUpper(n.name) = toUpper(gstin_val) 
+               OR toUpper(n.GSTIN) = toUpper(gstin_val)
+            RETURN gstin_val AS input_gstin, labels(n) as labels, 
+                   coalesce(n.riskScore, n.risk_score, n.score) as riskScore, 
+                   coalesce(n.fraudType, n.fraud_type, n.reason) as fraudType, 
+                   n.name as name
+            LIMIT 1000
+            """
+            result = session.run(query, gstins=gstin_list)
+            for record in result:
+                input_g = record["input_gstin"]
+                risk_val = record["riskScore"]
+                try:
+                    risk_score_int = int(float(risk_val)) if risk_val is not None else 75
+                except (ValueError, TypeError):
+                    risk_score_int = 75
+
+                risk_profiles[input_g] = {
+                    "labels": record["labels"] or [],
+                    "riskScore": risk_score_int,
+                    "fraudType": record["fraudType"] or "Flagged in Neo4j",
+                    "name": record["name"] or input_g
+                }
+        driver.close()
+    except Exception as e:
+        logger.error(f"Error querying Neo4j: {e}")
+        print(f"Neo4j Query Error: {e}")
+    return risk_profiles
+
+
+async def check_gstins_in_s3_reference(gstins: list[str], user_email: str) -> dict:
+    """
+    Check the GSTINs against reference dataset files stored in the S3 bucket or local fallback.
+    """
+    risk_profiles = {}
+    s3_reference_data = []
+
+    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+    AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET")
+    AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+
+    if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_S3_BUCKET:
+        try:
+            import boto3
+            s3 = boto3.client(
+                "s3",
+                aws_access_key_id=AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+                region_name=AWS_REGION
+            )
+            # List objects in bucket
+            response = s3.list_objects_v2(Bucket=AWS_S3_BUCKET)
+            if "Contents" in response:
+                for obj in response["Contents"]:
+                    key = obj["Key"]
+                    # If filename contains 'fake_gstin' or 'reference' or 'fraud' and is CSV/JSON
+                    if any(term in key.lower() for term in ["fake_gstin", "fraud_ref", "reference"]) and key.endswith((".json", ".csv")):
+                        print(f"Found reference file in S3: {key}")
+                        file_response = s3.get_object(Bucket=AWS_S3_BUCKET, Key=key)
+                        content = file_response["Body"].read()
+
+                        if key.endswith(".json"):
+                            try:
+                                data = json.loads(content.decode("utf-8", errors="replace"))
+                                if isinstance(data, list):
+                                    s3_reference_data.extend(data)
+                            except Exception as json_err:
+                                print(f"Error parsing S3 JSON reference: {json_err}")
+                        elif key.endswith(".csv"):
+                            try:
+                                import csv
+                                csv_text = content.decode("utf-8", errors="replace")
+                                reader = csv.DictReader(io.StringIO(csv_text))
+                                for row in reader:
+                                    s3_reference_data.append(row)
+                            except Exception as csv_err:
+                                print(f"Error parsing S3 CSV reference: {csv_err}")
+        except Exception as s3_err:
+            print(f"Error listing/reading S3 reference files: {s3_err}")
+
+    # Local Fallback
+    local_reference_data = []
+    local_path = os.path.join(os.path.dirname(__file__), "..", "..", "fake_gstin_dataset.json")
+    if os.path.exists(local_path):
+        try:
+            with open(local_path, "r", encoding="utf-8") as f:
+                local_reference_data = json.load(f)
+                print(f"Loaded {len(local_reference_data)} records from local reference dataset")
+        except Exception as local_err:
+            print(f"Error loading local reference dataset: {local_err}")
+
+    all_refs = s3_reference_data if s3_reference_data else local_reference_data
+
+    ref_lookup = {}
+    for ref in all_refs:
+        gstin_val = (ref.get("gstin") or ref.get("GSTIN") or "").strip().upper()
+        if gstin_val:
+            ref_lookup[gstin_val] = {
+                "supplier": ref.get("supplier") or ref.get("supplier name") or ref.get("name") or "Unknown Entity",
+                "riskScore": int(ref.get("riskScore") or ref.get("score") or 90),
+                "fraudType": ref.get("fraudType") or ref.get("reason") or "Flagged in reference dataset",
+                "source": "S3 Reference" if s3_reference_data else "Local Reference"
+            }
+
+    for g in gstins:
+        g_norm = g.strip().upper()
+        if g_norm in ref_lookup:
+            risk_profiles[g_norm] = ref_lookup[g_norm]
+
+    return risk_profiles
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Reconciliation engine
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_matching_engine(pr_invoices: list[dict], g2b_invoices: list[dict]) -> list[dict]:
+def run_matching_engine(pr_invoices: list[dict], g2b_invoices: list[dict], combined_profiles: dict = None) -> list[dict]:
     """
     Match Purchase Register invoices against GSTR-2B records.
 
@@ -311,6 +488,16 @@ def run_matching_engine(pr_invoices: list[dict], g2b_invoices: list[dict]) -> li
 
         conf = 100 if status == "Exact" else (0 if status == "Missing" else max(0, 100 - int(diff / max(pr_tax, 1) * 100)))
 
+        # Cross-reference with Neo4j / S3 profiles
+        gstin_key = str(inv.get("gstin", "")).strip().upper()
+        fraud_type = ""
+        if combined_profiles and gstin_key in combined_profiles:
+            prof = combined_profiles[gstin_key]
+            score = max(score, prof.get("riskScore", 0))
+            fraud_type = prof.get("fraudType", "")
+            # Reduce confidence slightly due to risk flag
+            conf = max(0, conf - 25)
+
         results.append({
             "id":        f"{inv.get('invoice_no', '')}",
             "supplier":  inv.get("supplier", "Unknown"),
@@ -322,6 +509,7 @@ def run_matching_engine(pr_invoices: list[dict], g2b_invoices: list[dict]) -> li
             "conf":      conf,
             "score":     score,
             "status":    status,
+            "fraudType": fraud_type,
         })
 
     return results
@@ -387,8 +575,11 @@ async def upload_files(
         if not invoices:
             raise HTTPException(status_code=422, detail="Purchase Register file appears empty or has incorrect column headers.")
 
-        # Upload to S3
+        # Upload new file to S3
         s3_url = await upload_file_to_s3_async(content, filename, purchase_register.content_type, user_email)
+
+        # Retrieve existing document to get its old s3_url before overwriting it
+        existing = await uploads_col.find_one({"type": "purchase_register", "user_email": user_email})
 
         # Store in MongoDB (upsert by run so we keep latest)
         db_set = {
@@ -408,6 +599,10 @@ async def upload_files(
             {"$set": db_set},
             upsert=True,
         )
+
+        # Delete the previous file from S3 to prevent leaks
+        if existing and existing.get("s3_url") and existing.get("s3_url") != s3_url:
+            await delete_file_from_s3_async(existing["s3_url"])
 
         response_item = {
             "type":     "purchase_register",
@@ -432,8 +627,11 @@ async def upload_files(
         if not invoices:
             raise HTTPException(status_code=422, detail="GSTR-2B file appears empty or has an unrecognised format.")
 
-        # Upload to S3
+        # Upload new file to S3
         s3_url = await upload_file_to_s3_async(content, filename, gstr2b.content_type, user_email)
+
+        # Retrieve existing document to get its old s3_url before overwriting it
+        existing = await uploads_col.find_one({"type": "gstr2b", "user_email": user_email})
 
         db_set = {
             "user_email": user_email,
@@ -452,6 +650,10 @@ async def upload_files(
             {"$set": db_set},
             upsert=True,
         )
+
+        # Delete the previous file from S3 to prevent leaks
+        if existing and existing.get("s3_url") and existing.get("s3_url") != s3_url:
+            await delete_file_from_s3_async(existing["s3_url"])
 
         response_item = {
             "type":     "gstr2b",
@@ -483,10 +685,116 @@ async def run_reconciliation(request: Request):
     if not g2b_doc:
         raise HTTPException(status_code=400, detail="GSTR-2B data not uploaded. Please upload it first.")
 
-    pr_invoices  = pr_doc.get("records", [])
-    g2b_invoices = g2b_doc.get("records", [])
+    # Download and parse Purchase Register on-the-fly from S3 if available, falling back to DB records
+    pr_invoices = None
+    pr_s3_url = pr_doc.get("s3_url")
+    if pr_s3_url:
+        try:
+            file_bytes = await download_file_from_s3_async(pr_s3_url)
+            if file_bytes:
+                filename = pr_doc.get("filename", "")
+                ext = filename.rsplit(".", 1)[-1].lower()
+                if ext in ("xlsx", "xls"):
+                    pr_invoices = parse_purchase_register_xlsx(file_bytes)
+                elif ext == "csv":
+                    pr_invoices = parse_purchase_register_csv(file_bytes)
+                
+                if pr_invoices:
+                    print("Successfully downloaded and parsed PR from S3")
+                else:
+                    print("S3 download succeeded but parsing PR returned no records. Falling back to DB.")
+            else:
+                print("S3 download failed for PR. Falling back to DB.")
+        except Exception as e:
+            print(f"Error downloading or parsing PR from S3: {e}. Falling back to DB.")
+            
+    if pr_invoices is None:
+        pr_invoices = pr_doc.get("records", [])
 
-    results = run_matching_engine(pr_invoices, g2b_invoices)
+    # Download and parse GSTR-2B on-the-fly from S3 if available, falling back to DB records
+    g2b_invoices = None
+    g2b_s3_url = g2b_doc.get("s3_url")
+    if g2b_s3_url:
+        try:
+            file_bytes = await download_file_from_s3_async(g2b_s3_url)
+            if file_bytes:
+                g2b_invoices = parse_gstr2b_json(file_bytes)
+                if g2b_invoices:
+                    print("Successfully downloaded and parsed G2B from S3")
+                else:
+                    print("S3 download succeeded but parsing G2B returned no records. Falling back to DB.")
+            else:
+                print("S3 download failed for G2B. Falling back to DB.")
+        except Exception as e:
+            print(f"Error downloading or parsing G2B from S3: {e}. Falling back to DB.")
+            
+    if g2b_invoices is None:
+        g2b_invoices = g2b_doc.get("records", [])
+
+    # ── Gather unique GSTINs for Neo4j & S3 Checking ───────────────────────────
+    gstins = set()
+    for inv in pr_invoices:
+        g = inv.get("gstin")
+        if g:
+            gstins.add(str(g).strip().upper())
+    for inv in g2b_invoices:
+        g = inv.get("gstin")
+        if g:
+            gstins.add(str(g).strip().upper())
+
+    # Check S3 reference datasets
+    s3_connected = True
+    s3_profiles = {}
+    try:
+        s3_profiles = await check_gstins_in_s3_reference(list(gstins), user_email)
+    except Exception as s3_err:
+        print(f"S3 Reference check error: {s3_err}")
+        s3_connected = False
+
+    # Check Neo4j database
+    neo4j_connected = True
+    neo4j_profiles = {}
+    neo4j_warning = None
+    if NEO4J_URI:
+        try:
+            # Quick connect check
+            driver = GraphDatabase.driver(
+                NEO4J_URI,
+                auth=(NEO4J_USERNAME, NEO4J_PASSWORD),
+                connection_timeout=3.0
+            )
+            driver.verify_connectivity()
+            driver.close()
+            # If connected, fetch the profiles
+            neo4j_profiles = check_gstins_in_neo4j(list(gstins))
+        except Exception as neo_err:
+            print(f"Neo4j connection failed: {neo_err}")
+            neo4j_connected = False
+            neo4j_warning = f"Could not connect to Neo4j database: {neo_err}"
+    else:
+        neo4j_connected = False
+        neo4j_warning = "Neo4j connection credentials not configured in backend .env."
+
+    # Merge profiles (S3 reference overrides or merges with Neo4j)
+    combined_profiles = {}
+    for gstin, prof in neo4j_profiles.items():
+        combined_profiles[gstin] = {
+            "riskScore": prof.get("riskScore") or 70,
+            "fraudType": prof.get("fraudType") or "Flagged in Neo4j",
+            "labels": prof.get("labels") or ["Supplier"],
+            "source": "Neo4j"
+        }
+    for gstin, prof in s3_profiles.items():
+        # S3 reference overrides or maxes the score
+        prev_score = combined_profiles.get(gstin, {}).get("riskScore", 0)
+        combined_profiles[gstin] = {
+            "riskScore": max(prof.get("riskScore") or 90, prev_score),
+            "fraudType": prof.get("fraudType") or "Flagged in S3/Local reference",
+            "labels": ["HighRisk", "Supplier"],
+            "source": prof.get("source") or "S3/Local Reference"
+        }
+
+    results = run_matching_engine(pr_invoices, g2b_invoices, combined_profiles)
     for r in results:
         r["user_email"] = user_email
 
@@ -497,16 +805,22 @@ async def run_reconciliation(request: Request):
     if results:
         await recon_results_col.insert_many(results)
 
-    # Store run metadata
+    # Store run metadata including Neo4j status
     await recon_runs_col.insert_one({
         "user_email": user_email,
         "run_at":  utcnow(),
         "summary": summary,
+        "neo4j_connected": neo4j_connected,
+        "neo4j_warning": neo4j_warning,
+        "s3_checked": len(s3_profiles) > 0,
     })
 
     return {
         "message": "Reconciliation completed successfully.",
         "summary": summary,
+        "neo4j_connected": neo4j_connected,
+        "neo4j_warning": neo4j_warning,
+        "s3_checked": len(s3_profiles) > 0,
     }
 
 
@@ -586,3 +900,36 @@ async def get_uploads(request: Request):
         if hasattr(item.get("uploaded_at"), "isoformat"):
             item["uploaded_at"] = item["uploaded_at"].isoformat()
     return {"uploads": items}
+
+
+@router.delete("/upload/{upload_type}")
+async def delete_upload(request: Request, upload_type: str):
+    """
+    Delete an uploaded file from MongoDB and AWS S3, and clear reconciliation results.
+    """
+    if upload_type not in ("purchase_register", "gstr2b"):
+        raise HTTPException(status_code=400, detail="Invalid upload type. Must be purchase_register or gstr2b.")
+
+    user_email = get_user_email(request)
+    doc = await uploads_col.find_one({"type": upload_type, "user_email": user_email})
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"No upload of type {upload_type} found.")
+
+    # 1. Delete from AWS S3 if s3_url exists
+    s3_url = doc.get("s3_url")
+    deleted_from_s3 = False
+    if s3_url:
+        deleted_from_s3 = await delete_file_from_s3_async(s3_url)
+
+    # 2. Delete from MongoDB uploads collection
+    await uploads_col.delete_one({"type": upload_type, "user_email": user_email})
+
+    # 3. Clear reconciliation results & runs since one of the inputs is deleted
+    await recon_results_col.delete_many({"user_email": user_email})
+    await recon_runs_col.delete_many({"user_email": user_email})
+
+    return {
+        "status": "success",
+        "message": f"Successfully deleted {upload_type} from S3 and MongoDB project data.",
+        "deleted_from_s3": deleted_from_s3
+    }

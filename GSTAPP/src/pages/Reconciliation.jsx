@@ -61,6 +61,21 @@ export default function Reconciliation() {
         title: 'Reconciliation Complete',
         message: `${s.exact || 0} exact · ${s.partial || 0} partial · ${s.missing || 0} missing · ${s.duplicate || 0} duplicates`,
       });
+
+      if (result.neo4j_connected === false) {
+        addToast({
+          type: 'warning',
+          title: 'Neo4j Offline',
+          message: 'Graph database is offline. Cross-checked with S3 / local reference dataset.',
+        });
+      } else if (result.neo4j_connected) {
+        addToast({
+          type: 'success',
+          title: 'Graph Verified',
+          message: 'Checked successfully against Neo4j and S3 databases.',
+        });
+      }
+
       setPage(1);
       await loadResults();
       window.dispatchEvent(new Event('reconciliation_completed'));

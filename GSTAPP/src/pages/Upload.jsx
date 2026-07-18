@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   UploadCloud, FileSpreadsheet, FileText, CheckCircle2,
-  X, AlertCircle, Clock, ChevronRight, Play, RefreshCw,
+  X, AlertCircle, Clock, ChevronRight, Play, RefreshCw, Trash2,
 } from 'lucide-react';
 import { useToast } from '../components/Layout';
 import { useReconProgress } from '../components/Layout';
 import { reconApi } from '../services/api';
-import { addUploadEvent } from '../utils/uploadActivity';
+import { addUploadEvent, deleteUploadEvent } from '../utils/uploadActivity';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers — count records from the raw file in the browser
@@ -87,7 +87,7 @@ function animateTo(setProgress, target, ms = 400) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Upload Zone Component
 // ─────────────────────────────────────────────────────────────────────────────
-function UploadZone({ type, title, subtitle, acceptLabel, acceptAttr, icon: Icon, color, bgColor, onFileUploaded }) {
+function UploadZone({ type, title, subtitle, acceptLabel, acceptAttr, icon: Icon, color, bgColor, onFileUploaded, existingFile, onDelete }) {
   const [file, setFile]               = useState(null);
   const [dragging, setDragging]       = useState(false);
   const [progress, setProgress]       = useState(0);
@@ -96,6 +96,24 @@ function UploadZone({ type, title, subtitle, acceptLabel, acceptAttr, icon: Icon
   const [errorMsg, setErrorMsg]       = useState('');
   const inputRef = useRef(null);
   const addToast = useToast();
+
+  useEffect(() => {
+    if (existingFile) {
+      setFile({ name: existingFile.filename, size: existingFile.size || 0 });
+      setStatus('done');
+      setProgress(100);
+      setRecordCount(existingFile.count ?? existingFile.records ?? null);
+      setErrorMsg('');
+    } else {
+      if (status === 'done') {
+        setFile(null);
+        setStatus('idle');
+        setProgress(0);
+        setRecordCount(null);
+        setErrorMsg('');
+      }
+    }
+  }, [existingFile]);
 
   const handleFile = async (f) => {
     if (!f) return;
@@ -168,7 +186,13 @@ function UploadZone({ type, title, subtitle, acceptLabel, acceptAttr, icon: Icon
     handleFile(e.dataTransfer.files[0]);
   };
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
+    if (status === 'done') {
+      if (onDelete) {
+        const success = await onDelete();
+        if (!success) return;
+      }
+    }
     setFile(null);
     setProgress(0);
     setStatus('idle');
@@ -300,8 +324,42 @@ function UploadZone({ type, title, subtitle, acceptLabel, acceptAttr, icon: Icon
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Upload() {
   const openRecon = useReconProgress();
+  const addToast = useToast();
   const [recentUploads, setRecentUploads] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+
+  const handleDelete = async (upload) => {
+    if (!upload) return true;
+    const uploadType = upload.type; // 'purchase_register' or 'gstr2b'
+    const prOrG2b = uploadType === 'purchase_register' ? 'pr' : 'g2b';
+    
+    addToast({ type: 'info', title: 'Deleting File', message: 'Removing file from project database and S3…' });
+    
+    try {
+      if (!upload._local) {
+        await reconApi.deleteUpload(uploadType);
+      }
+      
+      // Also delete from local events fallback
+      deleteUploadEvent(prOrG2b);
+      
+      addToast({
+        type: 'success',
+        title: 'File Deleted',
+        message: `${upload.filename} successfully removed.`,
+      });
+      
+      loadHistory();
+      return true;
+    } catch (e) {
+      addToast({
+        type: 'error',
+        title: 'Delete Failed',
+        message: e.message || 'Error occurred while deleting file.',
+      });
+      return false;
+    }
+  };
 
   const loadHistory = async () => {
     setLoadingHistory(true);
@@ -381,6 +439,8 @@ export default function Upload() {
           color="text-blue-600"
           bgColor="bg-blue-50"
           onFileUploaded={handleFileUploaded}
+          existingFile={recentUploads.find((u) => u.type === 'purchase_register')}
+          onDelete={() => handleDelete(recentUploads.find((u) => u.type === 'purchase_register'))}
         />
         <UploadZone
           type="g2b"
@@ -392,6 +452,8 @@ export default function Upload() {
           color="text-emerald-600"
           bgColor="bg-emerald-50"
           onFileUploaded={handleFileUploaded}
+          existingFile={recentUploads.find((u) => u.type === 'gstr2b')}
+          onDelete={() => handleDelete(recentUploads.find((u) => u.type === 'gstr2b'))}
         />
       </div>
 
@@ -480,7 +542,15 @@ export default function Upload() {
                   <CheckCircle2 size={11} />
                   {upload._local ? 'Local' : 'Processed'}
                 </span>
-                <ChevronRight size={14} className="text-gray-300" />
+                
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDelete(upload); }}
+                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                  title="Delete file from S3 and project database"
+                  aria-label={`Delete ${upload.filename}`}
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
             </div>
           ))}

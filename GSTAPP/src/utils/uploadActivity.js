@@ -63,6 +63,21 @@ export function clearUploadEvents() {
 }
 
 /**
+ * Delete a specific upload event by its type ('pr' or 'g2b').
+ * @param {'pr'|'g2b'} type
+ */
+export function deleteUploadEvent(type) {
+  const stored = getUploadEvents();
+  const updated = stored.filter(ev => ev.type !== type);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('gst_upload_activity'));
+  } catch {
+    // ignore
+  }
+}
+
+/**
  * Convert an UploadEvent into a human-readable ticker line.
  * @param {UploadEvent} ev
  * @returns {{ color: string, text: string }}

@@ -137,8 +137,10 @@ async def get_graph_data(request: Request):
         date         = str(r.get("date", "") or "")
         pr_tax       = float(r.get("prTax", 0) or 0)
 
-        fraud_type   = STATUS_TO_FRAUD_TYPE.get(status, "")
+        fraud_type   = r.get("fraudType") or STATUS_TO_FRAUD_TYPE.get(status, "")
         link_type    = STATUS_TO_LINK.get(status, "CONNECTED_TO")
+        if r.get("fraudType") and status == "Exact":
+            link_type = "SUSPICIOUS"
 
         all_supplier_ids.add(supplier_id.upper())
 
@@ -151,7 +153,7 @@ async def get_graph_data(request: Request):
         if supplier_id not in nodes:
             nodes[supplier_id] = {
                 "id":           supplier_id,
-                "label":        "HighRisk" if score >= 70 else "Supplier",
+                "label":        "HighRisk" if (score >= 70 or r.get("fraudType")) else "Supplier",
                 "name":         supplier,
                 "gstin":        supplier_id,
                 "riskScore":    score,
@@ -173,13 +175,13 @@ async def get_graph_data(request: Request):
                 existing["aiConf"]    = ai_conf
                 existing["fraudType"] = fraud_type
                 existing["taxDiff"]   = f"₹{diff:,.2f}" if diff else existing.get("taxDiff")
-            if score >= 70:
+            if score >= 70 or r.get("fraudType"):
                 existing["label"] = "HighRisk"
 
-        # ── Invoice node (only for flagged statuses) ─────────────────────────
+        # ── Invoice node (only for flagged statuses or fraud checked) ─────────
         inv_node_id = f"INV_{supplier_id}_{invoice_no}"
 
-        if status in ("Duplicate", "Partial", "Missing"):
+        if status in ("Duplicate", "Partial", "Missing") or r.get("fraudType"):
             if inv_node_id not in nodes:
                 nodes[inv_node_id] = {
                     "id":        inv_node_id,

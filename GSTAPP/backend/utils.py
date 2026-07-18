@@ -79,6 +79,78 @@ async def upload_file_to_s3_async(file_content: bytes, filename: str, content_ty
     return await loop.run_in_executor(None, fn)
 
 
+def download_file_from_s3_sync(s3_url: str) -> bytes | None:
+    """
+    Downloads file contents from S3 given its S3 URL.
+    """
+    if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY or not AWS_S3_BUCKET:
+        print("S3 Warning: AWS credentials or S3 bucket not configured. Skipping S3 download.")
+        return None
+    try:
+        # Extract s3 key from URL
+        # URL structure: https://<bucket>.s3.<region>.amazonaws.com/<key>
+        url_parts = s3_url.split(".amazonaws.com/")
+        if len(url_parts) < 2:
+            print(f"S3 Error: Invalid S3 URL structure: {s3_url}")
+            return None
+        s3_key = url_parts[1]
+        
+        s3 = boto3.client(
+            "s3",
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=AWS_REGION
+        )
+        response = s3.get_object(Bucket=AWS_S3_BUCKET, Key=s3_key)
+        return response["Body"].read()
+    except Exception as e:
+        print(f"Error downloading file from S3: {e}")
+        return None
+
+
+async def download_file_from_s3_async(s3_url: str) -> bytes | None:
+    """Async wrapper to download files from S3 without blocking the event loop."""
+    import functools
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, download_file_from_s3_sync, s3_url)
+
+
+def delete_file_from_s3_sync(s3_url: str) -> bool:
+    """
+    Deletes a file from S3 given its S3 URL.
+    """
+    if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY or not AWS_S3_BUCKET:
+        print("S3 Warning: AWS credentials or S3 bucket not configured. Skipping S3 delete.")
+        return False
+    try:
+        url_parts = s3_url.split(".amazonaws.com/")
+        if len(url_parts) < 2:
+            print(f"S3 Error: Invalid S3 URL structure for deletion: {s3_url}")
+            return False
+        s3_key = url_parts[1]
+        
+        s3 = boto3.client(
+            "s3",
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=AWS_REGION
+        )
+        s3.delete_object(Bucket=AWS_S3_BUCKET, Key=s3_key)
+        print(f"Successfully deleted {s3_key} from S3 bucket {AWS_S3_BUCKET}")
+        return True
+    except Exception as e:
+        print(f"Error deleting file from S3: {e}")
+        return False
+
+
+async def delete_file_from_s3_async(s3_url: str) -> bool:
+    """Async wrapper to delete files from S3 without blocking the event loop."""
+    import functools
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, delete_file_from_s3_sync, s3_url)
+
+
+
 import bcrypt
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

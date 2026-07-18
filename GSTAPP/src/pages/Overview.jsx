@@ -8,6 +8,7 @@ import {
 import { useReconProgress } from '../components/Layout';
 import { useToast } from '../components/Layout';
 import { getUploadEvents, eventToTicker, relativeTime } from '../utils/uploadActivity';
+import { dashboardApi } from '../services/api';
 
 // ── Severity badge styles ──────────────────────────────────────
 const SEV_STYLES = {
@@ -318,23 +319,16 @@ export default function Overview() {
     // Try real API only — no mock fallback
     await new Promise((r) => setTimeout(r, isRefresh ? 400 : 600));
     try {
-      const [sRes, aRes, tRes] = await Promise.all([
-        fetch('/api/dashboard/stats'),
-        fetch('/api/dashboard/alerts'),
-        fetch('/api/dashboard/trend'),
+      const [s, a, t] = await Promise.all([
+        dashboardApi.getStats(),
+        dashboardApi.getAlerts(),
+        dashboardApi.getTrend(),
       ]);
-      if (sRes.ok && aRes.ok && tRes.ok) {
-        const [s, a, t] = await Promise.all([sRes.json(), aRes.json(), tRes.json()]);
-        setStats(s);
-        setAlerts(a.alerts || []);
-        setTrend(t.trend   || []);
-      } else {
-        // API unavailable — show empty state
-        setStats(null);
-        setAlerts([]);
-        setTrend([]);
-      }
-    } catch {
+      setStats(s);
+      setAlerts(a.alerts || []);
+      setTrend(t.trend   || []);
+    } catch (err) {
+      console.error("Dashboard API Error:", err);
       // API unavailable — show empty state
       setStats(null);
       setAlerts([]);

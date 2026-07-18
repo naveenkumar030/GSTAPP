@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/Layout';
 import { getAnalyticsSnapshot, subscribeToUploads } from '../utils/analyticsStore';
+import { dashboardApi, reconApi } from '../services/api';
 
 // ── FY options ─────────────────────────────────────────────────
 const FY_OPTIONS = ['FY 26-27', 'FY 25-26', 'FY 24-25', 'FY 23-24', 'FY 22-23'];
@@ -206,13 +207,80 @@ export default function Reports() {
   const suppliersVal   = useCountUp(suppliersCount, 1100);
 
   // ── Load analytics data ──────────────────────────────────────
-  const loadData = useCallback((fy = fyFilter) => {
+  const loadData = useCallback(async (fy = fyFilter) => {
     setLoading(true);
     setVisible(false);
 
-    // Derive analytics directly from uploaded file data in localStorage.
-    // No backend required — all computations are done client-side from
-    // the upload events saved by Upload.jsx via addUploadEvent().
+    try {
+      // 1. Try fetching uploaded files and stats from backend
+      const [uploadsData, statsData] = await Promise.all([
+        reconApi.getUploads(),
+        dashboardApi.getStats()
+      ]);
+
+      if (uploadsData && statsData) {
+        
+        if (uploadsData.uploads && uploadsData.uploads.length > 0) {
+          // Map backend uploads to standard UploadEvents
+          const backendEvents = uploadsData.uploads.map(u => ({
+            id: u.s3_url || u.filename,
+            type: u.type === 'purchase_register' ? 'pr' : 'g2b',
+            filename: u.filename,
+            records: u.count || 0,
+            sizeMB: (u.size || 0) / (1024 * 1024),
+            timestamp: u.uploaded_at || new Date().toISOString(),
+            s3_url: u.s3_url
+          }));
+          
+          const snap = getAnalyticsSnapshot(fy, backendEvents);
+          
+          // Overwrite stats with real backend stats if available
+          if (statsData && statsData.hasData) {
+            snap.summary.invoicesReconciled = statsData.total || snap.summary.invoicesReconciled;
+            snap.summary.matchRatePct = statsData.exact ? Math.round((statsData.exact.count / (statsData.total || 1)) * 100) : snap.summary.matchRatePct;
+            snap.summary.partialPct = statsData.partial ? Math.round((statsData.partial.count / (statsData.total || 1)) * 100) : snap.summary.partialPct;
+            snap.summary.missingPct = statsData.missing ? Math.round((statsData.missing.count / (statsData.total || 1)) * 100) : snap.summary.missingPct;
+            snap.summary.duplicatePct = statsData.duplicate ? Math.round((statsData.duplicate.count / (statsData.total || 1)) * 100) : snap.summary.duplicatePct;
+            
+            // Recompute display values
+            const exactTax = statsData.exact?.tax || 0;
+            const partialTax = statsData.partial?.tax || 0;
+            const missingTax = statsData.missing?.tax || 0;
+            // Scale correctly for Crore displays
+            snap.summary.totalITC = exactTax + partialTax + missingTax;
+            snap.summary.riskITC = missingTax;
+            
+            // The display cards use (totalITC / 100).toFixed(2) Cr.
+            // Let's store direct values in lakh/crore scale if statsData uses standard numbers
+            // e.g. if the backend returned ₹ values, we want snap.summary.totalITC to be in Rupees
+            snap.summary.totalITCDisplay = `₹${(snap.summary.totalITC / 10000000).toFixed(2)} Cr`;
+            snap.summary.riskITCDisplay = `₹${(snap.summary.riskITC / 10000000).toFixed(2)} Cr`;
+            
+            // If totalITC / 10000000 is 0, let's keep standard local fallback calculations
+            if (snap.summary.totalITC > 0) {
+              // Set the summary changes text
+              snap.summary.changes.itc = `${backendEvents.length} file${backendEvents.length !== 1 ? 's' : ''} uploaded`;
+              snap.summary.changes.riskITC = `₹${(snap.summary.riskITC / 10000000).toFixed(2)} Cr flagged`;
+              snap.summary.changes.invoices = `${snap.summary.invoicesReconciled.toLocaleString('en-IN')} processed`;
+            }
+          }
+          
+          setSummary(snap.summary);
+          setMonthly(snap.monthly || []);
+          setSuppliers(snap.suppliers || []);
+          setDataSource('api'); // Mark as S3/API live data
+          setHasData(true);
+          setLoading(false);
+          setLastRefresh(new Date());
+          setTimeout(() => setVisible(true), 100);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Backend fetch failed, falling back to localStorage:", e);
+    }
+
+    // ── Local Fallback ──────────────────────────────────────────
     const snap = getAnalyticsSnapshot(fy);
     setSummary(snap.summary);
     setMonthly(snap.monthly  || []);

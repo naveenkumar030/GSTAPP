@@ -128,6 +128,9 @@ export const reconApi = {
 
   /** List of recently uploaded files. */
   getUploads: () => apiFetch('/api/reconciliation/uploads'),
+
+  /** Delete an uploaded file by its type ('purchase_register' or 'gstr2b'). */
+  deleteUpload: (uploadType) => apiFetch(`/api/reconciliation/upload/${uploadType}`, { method: 'DELETE' }),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

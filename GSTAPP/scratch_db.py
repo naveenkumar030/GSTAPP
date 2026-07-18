@@ -13,13 +13,18 @@ async def main():
         tlsAllowInvalidHostnames=True,
     )
     db = client.get_database("gstrecounciliation_user")
-    col = db.get_collection("reconciliation_results")
-    count = await col.count_documents({})
-    print(f"Collection: reconciliation_results -> Count: {count}")
-    cursor = col.find({}).limit(5)
+    col = db.get_collection("uploads")
+    
+    print("--- All Uploads in Collection ---")
+    cursor = col.find({})
     async for doc in cursor:
-        print(f"  Doc: {doc}")
+        print({
+            "user_email": doc.get("user_email"),
+            "type": doc.get("type"),
+            "filename": doc.get("filename"),
+            "s3_url": doc.get("s3_url"),
+            "uploaded_at": doc.get("uploaded_at")
+        })
                 
 if __name__ == "__main__":
     asyncio.run(main())
-

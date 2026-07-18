@@ -72,12 +72,15 @@ const RECON_STAGES = [
 ];
 
 function ReconProgressModal({ onClose, onComplete }) {
+  const addToast = useToast();
   const [currentStage, setCurrentStage] = useState(0);
   const [done, setDone] = useState(false);
   const [pct, setPct] = useState(0);
   const [reconError, setReconError] = useState('');
   const [summary, setSummary] = useState(null);
   const apiCalledRef = useRef(false);
+  const doneRef = useRef(false);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     if (apiCalledRef.current) return;
@@ -88,31 +91,55 @@ function ReconProgressModal({ onClose, onComplete }) {
 
     // Animate through stages while API runs
     const advance = () => {
+      if (doneRef.current) return;
       if (stage >= total - 1) return; // hold at last stage until API finishes
       setCurrentStage(stage);
       setPct(Math.round((stage / total) * 100));
       stage++;
       const delay = 700 + Math.random() * 500;
-      setTimeout(advance, delay);
+      timerRef.current = setTimeout(advance, delay);
     };
-    setTimeout(advance, 400);
+    timerRef.current = setTimeout(advance, 400);
 
     // Call the actual Python reconciliation API
     reconApi.runReconciliation()
       .then((result) => {
+        doneRef.current = true;
+        if (timerRef.current) clearTimeout(timerRef.current);
         setSummary(result?.summary || null);
         setCurrentStage(total - 1);
         setPct(100);
         setDone(true);
         window.dispatchEvent(new Event('reconciliation_completed'));
+
+        if (result.neo4j_connected === false) {
+          addToast({
+            type: 'warning',
+            title: 'Neo4j Database Offline',
+            message: 'Graph verification bypassed. Cross-checked with S3 / local reference dataset.',
+          });
+        } else if (result.neo4j_connected) {
+          addToast({
+            type: 'success',
+            title: 'Graph Verified',
+            message: 'Checked successfully against Neo4j and S3 databases.',
+          });
+        }
+
         if (onComplete) onComplete(result?.summary);
       })
       .catch((err) => {
+        doneRef.current = true;
+        if (timerRef.current) clearTimeout(timerRef.current);
         setReconError(err.message || 'Reconciliation failed.');
         setDone(true);
         setPct(100);
         if (onComplete) onComplete(null);
       });
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 
   useEffect(() => {

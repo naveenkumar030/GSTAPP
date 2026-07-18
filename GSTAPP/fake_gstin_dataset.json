@@ -1,0 +1,26 @@
+[
+  {
+    "supplier": "Apex Suppliers",
+    "gstin": "27APEX9999F1Z1",
+    "invoice_no": "INV-101",
+    "date": "10 Mar 2026",
+    "taxable_value": 10000,
+    "tax_amount": 1800
+  },
+  {
+    "supplier": "Apex Suppliers",
+    "gstin": "27APEX9999F1Z1",
+    "invoice_no": "INV-102",
+    "date": "11 Mar 2026",
+    "taxable_value": 20000,
+    "tax_amount": 3600
+  },
+  {
+    "supplier": "Good Clean Corp",
+    "gstin": "29GOOD1111G1Z1",
+    "invoice_no": "INV-201",
+    "date": "12 Mar 2026",
+    "taxable_value": 5000,
+    "tax_amount": 900
+  }
+]
