@@ -33,6 +33,8 @@ export function getStatusStyles(status) {
       return 'bg-red-100 text-red-700 border-red-200';
     case 'Duplicate':
       return 'bg-violet-100 text-violet-700 border-violet-200';
+    case 'Fraud':
+      return 'bg-violet-100 text-violet-700 border-violet-200';
     case 'Under Review':
       return 'bg-blue-100 text-blue-700 border-blue-200';
     default:

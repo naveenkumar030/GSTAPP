@@ -67,7 +67,7 @@ const RECON_STAGES = [
   { id: 'normalize', label: 'Data Normalization',    desc: 'Standardising GSTIN & invoice formats' },
   { id: 'match',     label: 'Invoice Matching',      desc: 'Comparing PR vs GSTR-2B records' },
   { id: 'duplicate', label: 'Duplicate Detection',   desc: 'Identifying reused invoice numbers' },
-  { id: 'fraud',     label: 'Graph Fraud Analysis',  desc: 'Running Neo4j pattern algorithms' },
+  { id: 'fraud',     label: 'Graph Fraud Analysis',  desc: 'Verifying S3 reference registries' },
   { id: 'scoring',   label: 'Risk Scoring',          desc: 'Computing entity risk indicators' },
 ];
 
@@ -112,19 +112,11 @@ function ReconProgressModal({ onClose, onComplete }) {
         setDone(true);
         window.dispatchEvent(new Event('reconciliation_completed'));
 
-        if (result.neo4j_connected === false) {
-          addToast({
-            type: 'warning',
-            title: 'Neo4j Database Offline',
-            message: 'Graph verification bypassed. Cross-checked with S3 / local reference dataset.',
-          });
-        } else if (result.neo4j_connected) {
-          addToast({
-            type: 'success',
-            title: 'Graph Verified',
-            message: 'Checked successfully against Neo4j and S3 databases.',
-          });
-        }
+        addToast({
+          type: 'success',
+          title: 'Compliance Checked',
+          message: 'Cross-checked successfully against S3 reference databases.',
+        });
 
         if (onComplete) onComplete(result?.summary);
       })

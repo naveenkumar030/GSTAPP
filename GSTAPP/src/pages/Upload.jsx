@@ -153,7 +153,7 @@ function UploadZone({ type, title, subtitle, acceptLabel, acceptAttr, icon: Icon
       const g2b = type === 'g2b' ? f : null;
       const res = await Promise.race([
         reconApi.uploadFiles(pr, g2b),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000)),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 60000)),
       ]);
       const info = res?.uploads?.[0];
       serverRecords = info?.records ?? info?.count ?? null;
@@ -423,28 +423,15 @@ export default function Upload() {
         <div>
           <h1 className="page-title">Data Upload</h1>
           <p className="text-[14px] text-gray-500 mt-1">
-            Upload Purchase Register and GSTR-2B files for reconciliation processing.
+            Upload GSTR record file for compliance verification and supplier risk checking.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-        <UploadZone
-          type="pr"
-          title="Purchase Register"
-          subtitle="Your internal purchase records"
-          acceptLabel="Excel, CSV"
-          acceptAttr=".xlsx,.xls,.csv"
-          icon={FileSpreadsheet}
-          color="text-blue-600"
-          bgColor="bg-blue-50"
-          onFileUploaded={handleFileUploaded}
-          existingFile={recentUploads.find((u) => u.type === 'purchase_register')}
-          onDelete={() => handleDelete(recentUploads.find((u) => u.type === 'purchase_register'))}
-        />
+      <div className="max-w-xl mx-auto w-full">
         <UploadZone
           type="g2b"
-          title="GSTR-2B Data"
+          title="GSTR Record Data"
           subtitle="Direct download from GST Portal"
           acceptLabel="JSON"
           acceptAttr=".json,application/json"
@@ -465,15 +452,15 @@ export default function Upload() {
               <Play size={16} className="text-blue-600" />
             </div>
             <div>
-              <h3 className="text-[14px] font-bold text-gray-900">Ready to Reconcile</h3>
+              <h3 className="text-[14px] font-bold text-gray-900">Ready to Scan</h3>
               <p className="text-[12px] text-gray-500 mt-0.5">
-                Upload both files above, then run the reconciliation engine.
+                Upload your GSTR file above, then run the compliance and risk verification engine.
               </p>
             </div>
           </div>
           <button onClick={openRecon} className="btn-primary shrink-0">
             <Play size={14} />
-            Process Files
+            Verify Compliance
           </button>
         </div>
       </div>
@@ -563,9 +550,7 @@ export default function Upload() {
         <div>
           <p className="text-[13px] font-semibold text-blue-900">Format Requirements</p>
           <p className="text-[12px] text-blue-700 mt-1">
-            Purchase Register: Excel (.xlsx) or CSV with columns — Supplier Name, GSTIN, Invoice No., Date, Taxable Value, Tax Amount.
-            <br />
-            GSTR-2B: Standard JSON format as downloaded from the GST Portal (Section B2B only).
+            GSTR Record: Standard JSON format as downloaded from the GST Portal (Section B2B only).
           </p>
         </div>
       </div>

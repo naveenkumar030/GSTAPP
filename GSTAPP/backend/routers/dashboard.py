@@ -2,7 +2,7 @@
 Dashboard Router
 Provides aggregated data for the Overview/Dashboard page:
   - GET /api/dashboard/stats   — KPI counts from latest reconciliation run
-  - GET /api/dashboard/alerts  — Top fraud alerts (from Neo4j + MongoDB)
+  - GET /api/dashboard/alerts  — Top fraud alerts (from S3 + MongoDB)
   - GET /api/dashboard/trend   — Monthly risk trend data
 """
 
@@ -59,8 +59,8 @@ async def get_stats(request: Request):
         exact     = s.get("exact",     0)
         partial   = s.get("partial",   0)
         missing   = s.get("missing",   0)
-        duplicate = s.get("duplicate", 0)
-        total     = s.get("total",     exact + partial + missing + duplicate)
+        fraud     = s.get("fraud",     0)
+        total     = s.get("total",     exact + partial + missing + fraud)
     else:
         # Count live results
         pipeline = [
@@ -69,15 +69,16 @@ async def get_stats(request: Request):
         ]
         cursor   = recon_results_col.aggregate(pipeline)
         rows     = await cursor.to_list(length=100)
-        counts   = {"Exact": 0, "Partial": 0, "Missing": 0, "Duplicate": 0}
+        counts   = {"Exact": 0, "Partial": 0, "Missing": 0, "Fraud": 0, "Duplicate": 0}
         for row in rows:
             if row["_id"] in counts:
                 counts[row["_id"]] = row["count"]
         exact     = counts["Exact"]
         partial   = counts["Partial"]
         missing   = counts["Missing"]
-        duplicate = counts["Duplicate"]
-        total     = exact + partial + missing + duplicate
+        # Merge duplicate status into fraud for backwards compatibility
+        fraud     = counts["Fraud"] + counts["Duplicate"]
+        total     = exact + partial + missing + fraud
 
     # Compute tax risk amounts from reconciliation results
     partial_diff_pipeline = [
@@ -93,7 +94,7 @@ async def get_stats(request: Request):
         "exact":     {"count": exact,     "tax": round(total_pr * 0.85, 2)},
         "partial":   {"count": partial,   "tax": round(total_diff * 0.6, 2)},
         "missing":   {"count": missing,   "tax": round(total_diff * 0.4, 2)},
-        "duplicate": {"count": duplicate, "tax": 0},
+        "fraud":     {"count": fraud,     "tax": 0},
         "total":     total,
         "hasData":   total > 0,
     }
@@ -174,7 +175,8 @@ async def get_trend(request: Request):
                 },
                 "partial":   {"$sum": "$summary.partial"},
                 "missing":   {"$sum": "$summary.missing"},
-                "duplicate": {"$sum": "$summary.duplicate"},
+                "fraud":     {"$sum": {"$ifNull": ["$summary.fraud", 0]}},
+                "duplicate": {"$sum": {"$ifNull": ["$summary.duplicate", 0]}},
                 "total":     {"$sum": "$summary.total"},
             }
         },
@@ -191,7 +193,7 @@ async def get_trend(request: Request):
             month_idx = row["_id"]["month"] - 1
             total     = row.get("total", 1) or 1
             risk_pct  = round(
-                (row.get("partial", 0) + row.get("missing", 0) + row.get("duplicate", 0))
+                (row.get("partial", 0) + row.get("missing", 0) + row.get("fraud", 0) + row.get("duplicate", 0))
                 / total * 100,
                 1
             )

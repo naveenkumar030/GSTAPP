@@ -29,3 +29,8 @@ dist-ssr
 __pycache__/
 *.pyc
 
+# GST dataset caches / temporary files
+**/core_dataset_cache.csv
+**/core_dataset_metadata.json
+temp_core_dataset.csv*
+*.CF348bbC

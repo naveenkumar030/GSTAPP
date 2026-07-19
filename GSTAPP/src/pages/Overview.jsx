@@ -25,7 +25,7 @@ const SPARKLINES = {
   exact:     [4, 6, 5, 8, 7, 9, 7, 10, 8, 9],
   partial:   [7, 5, 8, 4, 6, 3, 5, 4,  6, 4],
   missing:   [3, 4, 5, 6, 4, 7, 5, 6,  7, 5],
-  duplicate: [2, 3, 2, 4, 3, 5, 3, 4,  3, 4],
+  fraud:     [2, 3, 2, 4, 3, 5, 3, 4,  3, 4],
 };
 
 // ── Animated counter hook ──────────────────────────────────────
@@ -252,7 +252,7 @@ function UploadActivityLog() {
 const KPI_CONFIG = [
   {
     id: 1, key: 'exact',
-    title: 'Exact Matches',
+    title: 'Verified Safe',
     subtitle: (tax) => `₹${(tax / 1e7).toFixed(1)} Cr total tax cleared`,
     trend: '+12%', trendUp: true,
     icon: CheckCircle2,
@@ -262,7 +262,7 @@ const KPI_CONFIG = [
   },
   {
     id: 2, key: 'partial',
-    title: 'Partial Matches',
+    title: 'Low/Medium Risk',
     subtitle: (tax) => `₹${(tax / 1e5).toFixed(1)} L difference found`,
     trend: '-5%', trendUp: false,
     icon: AlertTriangle,
@@ -272,7 +272,7 @@ const KPI_CONFIG = [
   },
   {
     id: 3, key: 'missing',
-    title: 'Missing in GSTR-2B',
+    title: 'High Risk / Flags',
     subtitle: (tax) => `₹${(tax / 1e5).toFixed(1)} L ITC at risk`,
     trend: '+2%', trendUp: true,
     icon: XCircle,
@@ -281,11 +281,11 @@ const KPI_CONFIG = [
     trendBg: 'bg-red-50', trendColor: 'text-red-700',
   },
   {
-    id: 4, key: 'duplicate',
-    title: 'Duplicate Invoices',
+    id: 4, key: 'fraud',
+    title: 'Fraud / Suspicious',
     subtitle: () => 'Requires investigation',
     trend: null, trendUp: null,
-    icon: Network,
+    icon: ShieldAlert,
     variant: 'kpi-fraud',
     iconBg: 'bg-violet-100', iconColor: 'text-violet-600',
     trendBg: 'bg-gray-100', trendColor: 'text-gray-600',
@@ -293,10 +293,10 @@ const KPI_CONFIG = [
 ];
 
 const MISMATCH_DIST_CONFIG = [
-  { key: 'exact',     label: 'Exact',     color: 'bg-green-500',  textColor: 'text-green-600' },
-  { key: 'partial',   label: 'Partial',   color: 'bg-amber-500',  textColor: 'text-amber-600' },
-  { key: 'missing',   label: 'Missing',   color: 'bg-red-500',    textColor: 'text-red-600' },
-  { key: 'duplicate', label: 'Duplicate', color: 'bg-violet-500', textColor: 'text-violet-600' },
+  { key: 'exact',     label: 'Verified',  color: 'bg-green-500',  textColor: 'text-green-600' },
+  { key: 'partial',   label: 'Med Risk',  color: 'bg-amber-500',  textColor: 'text-amber-600' },
+  { key: 'missing',   label: 'High Risk', color: 'bg-red-500',    textColor: 'text-red-600' },
+  { key: 'fraud',     label: 'Fraud',     color: 'bg-violet-500', textColor: 'text-violet-600' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -403,9 +403,9 @@ export default function Overview() {
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 flex items-start gap-4">
           <UploadCloud size={22} className="text-blue-500 shrink-0 mt-0.5" />
           <div>
-            <p className="text-[15px] font-bold text-blue-900">No reconciliation data yet</p>
+            <p className="text-[15px] font-bold text-blue-900">No verification data yet</p>
             <p className="text-[13px] text-blue-700 mt-1">
-              Upload your <strong>Purchase Register</strong> and <strong>GSTR-2B</strong> files on the{' '}
+              Upload your <strong>GSTR Record</strong> file on the{' '}
               <strong>Data Upload</strong> page, then click <strong>Run Reconciliation</strong> to populate this dashboard.
             </p>
           </div>

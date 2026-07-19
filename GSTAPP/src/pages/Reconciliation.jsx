@@ -59,22 +59,8 @@ export default function Reconciliation() {
       addToast({
         type: 'success',
         title: 'Reconciliation Complete',
-        message: `${s.exact || 0} exact · ${s.partial || 0} partial · ${s.missing || 0} missing · ${s.duplicate || 0} duplicates`,
+        message: `${s.exact || 0} exact · ${s.partial || 0} partial · ${s.missing || 0} missing · ${s.fraud || 0} fraud`,
       });
-
-      if (result.neo4j_connected === false) {
-        addToast({
-          type: 'warning',
-          title: 'Neo4j Offline',
-          message: 'Graph database is offline. Cross-checked with S3 / local reference dataset.',
-        });
-      } else if (result.neo4j_connected) {
-        addToast({
-          type: 'success',
-          title: 'Graph Verified',
-          message: 'Checked successfully against Neo4j and S3 databases.',
-        });
-      }
 
       setPage(1);
       await loadResults();
@@ -107,10 +93,10 @@ export default function Reconciliation() {
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
             >
               <option value="all">Status: All</option>
-              <option value="Exact">Exact</option>
-              <option value="Partial">Partial</option>
-              <option value="Missing">Missing</option>
-              <option value="Duplicate">Duplicate</option>
+              <option value="Exact">Verified Safe</option>
+              <option value="Partial">Medium Risk</option>
+              <option value="Missing">High Risk / Flags</option>
+              <option value="Duplicate">Duplicate Claims</option>
             </select>
             <button
               onClick={() => { setStatusFilter('all'); setSearchQuery(''); setPage(1); }}
@@ -148,11 +134,11 @@ export default function Reconciliation() {
           {/* Panel Header */}
           <div className="px-5 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-[16px] font-bold text-gray-900">Invoice Reconciliation</h2>
+              <h2 className="text-[16px] font-bold text-gray-900">Compliance Verification</h2>
               <p className="text-[13px] text-gray-500 mt-0.5">
                 {hasData
-                  ? `${total.toLocaleString('en-IN')} invoices matched against GSTR-2B`
-                  : 'Upload files and run reconciliation to see results.'}
+                  ? `${total.toLocaleString('en-IN')} invoices scanned for compliance & risk`
+                  : 'Upload GSTR record and run compliance check to see results.'}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -189,10 +175,10 @@ export default function Reconciliation() {
                     <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                   </th>
                   <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 whitespace-nowrap">Supplier & Invoice</th>
-                  <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 text-right whitespace-nowrap">Purchase Tax</th>
-                  <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 text-right whitespace-nowrap">GSTR-2B Tax</th>
-                  <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 text-right whitespace-nowrap">Difference</th>
-                  <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 text-center whitespace-nowrap">Match %</th>
+                  <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 text-right whitespace-nowrap">Tax Claimed</th>
+                  <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 text-right whitespace-nowrap">Verified Tax</th>
+                  <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 text-right whitespace-nowrap">Tax at Risk</th>
+                  <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 text-center whitespace-nowrap">Compliance %</th>
                   <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 text-center whitespace-nowrap">Risk</th>
                   <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 whitespace-nowrap">Status</th>
                   <th className="px-4 py-3 text-[12px] font-semibold text-gray-600 border-b border-gray-200 w-12" />
@@ -261,7 +247,11 @@ export default function Reconciliation() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${getStatusStyles(row.status)}`}>
-                        {row.status}
+                        {row.status === 'Exact' ? 'Verified' :
+                         row.status === 'Partial' ? 'Medium Risk' :
+                         row.status === 'Missing' ? 'High Risk' :
+                         row.status === 'Duplicate' ? 'Duplicate' :
+                         row.status === 'Fraud' ? 'Fraud / Suspicious' : row.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -351,11 +341,15 @@ export default function Reconciliation() {
                     : <AlertTriangle size={16} />}
                 </div>
                 <div>
-                  <h4 className="text-[13px] font-semibold">{selectedInvoice.status} Match</h4>
+                  <h4 className="text-[13px] font-semibold">
+                    {selectedInvoice.status === 'Exact' ? 'Verified Safe' :
+                     selectedInvoice.status === 'Partial' ? 'Medium Risk' :
+                     selectedInvoice.status === 'Missing' ? 'High Risk' : 'Duplicate'}
+                  </h4>
                   <p className="text-[12px] mt-1 opacity-90">
                     {selectedInvoice.diff > 0
-                      ? `Tax difference of ${formatCurrency(selectedInvoice.diff)} found between PR and 2B.`
-                      : 'All values matched successfully.'}
+                      ? `Supplier has compliance warning flag. Tax at risk: ${formatCurrency(selectedInvoice.diff)}.`
+                      : 'Supplier has no risk flags. Clean compliance history.'}
                   </p>
                 </div>
               </div>
@@ -379,39 +373,20 @@ export default function Reconciliation() {
                 </div>
               </div>
 
-              {/* Comparison */}
+              {/* Verification Details */}
               <div>
-                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Field Comparison</h4>
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-left text-[12px]">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="p-2 font-medium text-gray-600">Field</th>
-                        <th className="p-2 font-medium text-gray-600">Purchase Reg</th>
-                        <th className="p-2 font-medium text-gray-600">GSTR-2B</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-mono">
-                      <tr>
-                        <td className="p-2 text-gray-500 font-sans">Date</td>
-                        <td className="p-2 text-gray-900">{selectedInvoice.date || '—'}</td>
-                        <td className="p-2 text-gray-900">{selectedInvoice.date || '—'}</td>
-                      </tr>
-                      <tr className={selectedInvoice.diff > 0 ? 'bg-red-50/50' : ''}>
-                        <td className="p-2 text-gray-500 font-sans">Tax Amount</td>
-                        <td className="p-2 text-gray-900">{formatCurrency(selectedInvoice.prTax)}</td>
-                        <td className={`p-2 font-medium ${selectedInvoice.diff > 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                          {formatCurrency(selectedInvoice.g2bTax)}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="p-2 text-gray-500 font-sans">Difference</td>
-                        <td colSpan={2} className={`p-2 font-medium ${selectedInvoice.diff > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {formatCurrency(selectedInvoice.diff)}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Verification Details</h4>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2 text-[12px]">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Tax Claimed</span>
+                    <span className="font-mono text-gray-900">{formatCurrency(selectedInvoice.g2bTax)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-150 pt-2">
+                    <span className="text-gray-500">Tax at Risk</span>
+                    <span className={`font-mono font-medium ${selectedInvoice.diff > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {formatCurrency(selectedInvoice.diff)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -424,10 +399,11 @@ export default function Reconciliation() {
                   <div className="bg-orange-50 border border-orange-100 rounded-lg p-3">
                     <p className="text-[12px] text-orange-800 font-medium mb-1">High Risk Score: {selectedInvoice.score}</p>
                     <p className="text-[12px] text-orange-700 opacity-90">
-                      This invoice was flagged by the reconciliation engine.
-                      {selectedInvoice.status === 'Missing' && ' Invoice is absent in GSTR-2B.'}
-                      {selectedInvoice.status === 'Duplicate' && ' Duplicate invoice number detected.'}
-                      {selectedInvoice.status === 'Partial' && ` Tax mismatch of ${formatCurrency(selectedInvoice.diff)}.`}
+                      This GSTR record was flagged by the verification engine.
+                      {selectedInvoice.status === 'Missing' && ' Supplier has critical fraud indicators in S3 reference dataset.'}
+                      {selectedInvoice.status === 'Fraud' && ' Fraudulent or suspicious invoice claim detected.'}
+                      {selectedInvoice.status === 'Duplicate' && ' Duplicate invoice claim detected.'}
+                      {selectedInvoice.status === 'Partial' && ' Moderate compliance mismatch / risk flag.'}
                     </p>
                   </div>
                 </div>

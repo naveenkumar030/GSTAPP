@@ -30,29 +30,29 @@ GST ReconGraph is a modern enterprise web application designed for GST filing, I
          ┌────────────┘           └────────────┐
          ▼                                     ▼
 ┌──────────────────┐                 ┌──────────────────┐
-│     MongoDB      │                 │     Neo4j DB     │
-│  (Users & OTPs)  │                 │ (Graph Network)  │
+│     MongoDB      │                 │      AWS S3      │
+│  (Users & OTPs)  │                 │  (Core/Ref Data) │
 └──────────────────┘                 └──────────────────┘
 ```
 
 The application is split into:
 - **Frontend**: A React single-page application built on Vite and Tailwind CSS. It uses `react-force-graph-2d` for interactive network visualizations. All API requests are proxied dynamically to the backend.
-- **Backend**: A FastAPI (Python) backend handling application security, business logic, MongoDB user management, SMTP email OTP dispatch, and execution of Cypher queries on Neo4j.
-- **Databases**:
+- **Backend**: A FastAPI (Python) backend handling application security, business logic, MongoDB user management, SMTP email OTP dispatch, and S3 queries.
+- **Databases & Storage**:
   - **MongoDB**: Stores user credentials, registration states, and temporal OTP codes.
-  - **Neo4j**: Represents transactional graphs mapping tax-paying entities and invoice structures to detect fraud patterns.
+  - **AWS S3**: Represents core and reference storage mapping tax-paying entities and invoice structures to detect fraud patterns.
 
 ---
 
 ## Setup & Run Instructions
 
-### 1. Environment Configuration
+## 1. Environment Configuration
 
 1. Copy the example environment file at the root:
    ```bash
    cp .env.example .env
    ```
-2. Open `.env` and fill in your connection strings and secrets for MongoDB, Neo4j, JWT, and SMTP credentials.
+2. Open `.env` and fill in your connection strings and secrets for MongoDB, AWS S3, JWT, and SMTP credentials.
 
 ---
 
