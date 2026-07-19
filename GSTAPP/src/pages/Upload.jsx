@@ -6,7 +6,7 @@ import {
 import { useToast } from '../components/Layout';
 import { useReconProgress } from '../components/Layout';
 import { reconApi } from '../services/api';
-import { addUploadEvent, deleteUploadEvent } from '../utils/uploadActivity';
+import { addUploadEvent, deleteUploadEvent, getUploadEvents } from '../utils/uploadActivity';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers — count records from the raw file in the browser
@@ -113,7 +113,7 @@ function UploadZone({ type, title, subtitle, acceptLabel, acceptAttr, icon: Icon
         setErrorMsg('');
       }
     }
-  }, [existingFile]);
+  }, [existingFile, status]);
 
   const handleFile = async (f) => {
     if (!f) return;
@@ -375,7 +375,6 @@ export default function Upload() {
     }
     if (!used) {
       // Fallback: read from localStorage upload events
-      const { getUploadEvents } = await import('../utils/uploadActivity');
       const evs = getUploadEvents();
       setRecentUploads(
         evs.map((ev) => ({

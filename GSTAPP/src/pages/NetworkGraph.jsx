@@ -204,9 +204,12 @@ export default function NetworkGraph() {
   useEffect(() => {
     if (!fgRef.current || graphData.nodes.length === 0) return;
     const fg = fgRef.current;
-    fg.d3Force('collide', d3.forceCollide().radius(n => (n.size || 8) + 18).iterations(3));
-    fg.d3Force('charge').strength(-450);
-    fg.d3Force('link').distance(145);
+    fg.d3Force('charge', d3.forceManyBody().strength(-800));
+    fg.d3Force('collide', d3.forceCollide().radius(n => (n.size || 8) + 35).iterations(3));
+    if (fg.d3Force('link')) {
+      fg.d3Force('link').distance(150);
+    }
+    fg.d3ReheatSimulation();
   }, [graphData]);
 
   // ─── Filtered data ────────────────────────────────────────────────────────────
@@ -491,9 +494,17 @@ export default function NetworkGraph() {
             <h2 className="text-[13px] font-bold text-gray-800 flex items-center gap-2">
               <Network size={15} className="text-blue-600" /> Network Graph
             </h2>
-            <button onClick={loadGraph} className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500" title="Reload">
-              <RefreshCw size={13} />
-            </button>
+            <div className="flex gap-1">
+              <button onClick={() => {
+                graphData.nodes.forEach(n => { n.fx = null; n.fy = null; });
+                fgRef.current?.d3ReheatSimulation();
+              }} className="px-2 py-1 rounded-md hover:bg-gray-100 text-gray-500 flex items-center gap-1 text-[11px] font-medium" title="Unpin All">
+                <RefreshCw size={12} /> Unpin All
+              </button>
+              <button onClick={loadGraph} className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500" title="Reload">
+                <RefreshCw size={13} />
+              </button>
+            </div>
           </div>
           {/* Search */}
           <div className="relative">
@@ -621,7 +632,22 @@ export default function NetworkGraph() {
               onNodeClick={handleNodeClick}
               onNodeHover={handleNodeHover}
               onZoom={({ k }) => setZoomLevel(k)}
-              cooldownTicks={120}
+              enableNodeDrag={true}
+              onNodeDragEnd={node => {
+                node.fx = node.x;
+                node.fy = node.y;
+              }}
+              onNodeDrag={node => {
+                fgRef.current?.d3ReheatSimulation();
+              }}
+              onNodeRightClick={node => {
+                node.fx = null;
+                node.fy = null;
+                fgRef.current?.d3ReheatSimulation();
+              }}
+              d3AlphaDecay={0.015}
+              d3VelocityDecay={0.25}
+              // Removed cooldownTicks to allow graph to fully spread out
               backgroundColor="transparent"
             />
           </div>

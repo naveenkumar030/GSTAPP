@@ -5,7 +5,8 @@ import uuid
 from fastapi import APIRouter, HTTPException
 from database import users_collection, otps_collection
 from models import RegisterRequest, VerifyOTPRequest, LoginRequest, ResetPasswordRequest, ResetPasswordVerifyRequest, GoogleLoginRequest
-from utils import get_password_hash, verify_password, create_access_token, generate_otp, send_email_async
+from utils import get_password_hash, verify_password, create_access_token, generate_otp, send_email_async, limiter
+from fastapi import Request
 from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
@@ -15,7 +16,8 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 @router.post("/register")
-async def register(req: RegisterRequest):
+@limiter.limit("5/minute")
+async def register(request: Request, req: RegisterRequest):
     # Validate fullName not empty
     if not req.fullName or not req.fullName.strip():
         raise HTTPException(status_code=422, detail="Full name is required")
@@ -65,7 +67,8 @@ async def register(req: RegisterRequest):
     return {"message": "OTP sent successfully. Please check your email and enter the 6-digit code."}
 
 @router.post("/verify-otp")
-async def verify_otp(req: VerifyOTPRequest):
+@limiter.limit("10/minute")
+async def verify_otp(request: Request, req: VerifyOTPRequest):
     otp_record = await otps_collection.find_one({"email": req.email})
     if not otp_record or otp_record.get("otp") != req.otp:
         raise HTTPException(status_code=400, detail="Invalid OTP. Please check the code and try again.")
@@ -90,7 +93,8 @@ async def verify_otp(req: VerifyOTPRequest):
     return {"message": "Account verified successfully! You can now log in."}
 
 @router.post("/login")
-async def login(req: LoginRequest):
+@limiter.limit("10/minute")
+async def login(request: Request, req: LoginRequest):
     user = await users_collection.find_one({"email": req.email})
     if not user or not verify_password(req.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -107,7 +111,8 @@ async def login(req: LoginRequest):
     }
 
 @router.post("/reset-password-request")
-async def reset_password_request(req: ResetPasswordRequest):
+@limiter.limit("5/minute")
+async def reset_password_request(request: Request, req: ResetPasswordRequest):
     user = await users_collection.find_one({"email": req.email})
     if not user:
         raise HTTPException(status_code=404, detail="No account found with this email address")
@@ -133,7 +138,8 @@ async def reset_password_request(req: ResetPasswordRequest):
     return {"message": "Password reset OTP sent. Please check your email."}
 
 @router.post("/reset-password-verify")
-async def reset_password_verify(req: ResetPasswordVerifyRequest):
+@limiter.limit("5/minute")
+async def reset_password_verify(request: Request, req: ResetPasswordVerifyRequest):
     otp_record = await otps_collection.find_one({"email": req.email})
     if not otp_record or otp_record.get("otp") != req.otp:
         raise HTTPException(status_code=400, detail="Invalid OTP")
@@ -160,25 +166,35 @@ async def reset_password_verify(req: ResetPasswordVerifyRequest):
 
 @router.post("/google-login")
 async def google_login(req: GoogleLoginRequest):
+    if not req.token:
+        raise HTTPException(status_code=400, detail="Google token is required")
+
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not google_client_id:
+        raise HTTPException(status_code=501, detail="Google Login is not configured on this server")
+
     email = req.email
     name = req.name or email.split("@")[0].capitalize()
     
-    # If a real token is supplied and GOOGLE_CLIENT_ID is configured in the environment
-    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
-    if req.token and google_client_id:
-        try:
-            url = f"https://oauth2.googleapis.com/tokeninfo?id_token={req.token}"
-            req_obj = urllib.request.Request(url)
-            with urllib.request.urlopen(req_obj) as response:
-                token_info = json.loads(response.read().decode())
+    try:
+        url = f"https://oauth2.googleapis.com/tokeninfo?id_token={req.token}"
+        req_obj = urllib.request.Request(url)
+        with urllib.request.urlopen(req_obj) as response:
+            token_info = json.loads(response.read().decode())
+            
+            if token_info.get("aud") != google_client_id:
+                raise HTTPException(status_code=400, detail="Invalid Google Client ID audience")
+            
+            # Use the verified email instead of client-supplied email
+            email = token_info.get("email")
+            if not email:
+                raise HTTPException(status_code=400, detail="Email not found in Google token")
                 
-                if token_info.get("aud") != google_client_id:
-                    raise HTTPException(status_code=400, detail="Invalid Google Client ID audience")
-                
-                email = token_info.get("email", email)
-                name = token_info.get("name", name)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Google authentication failed: {str(e)}")
+            name = token_info.get("name", name)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Google authentication failed: {str(e)}")
 
     # Check if user already exists
     user = await users_collection.find_one({"email": email})

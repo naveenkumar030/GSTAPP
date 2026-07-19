@@ -5,7 +5,7 @@ import { CheckCircle2, X, AlertTriangle, Info } from 'lucide-react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import NewAuditModal from './NewAuditModal';
-import CommandPalette from './CommandPalette';
+
 
 /* ── Toast Context ─────────────────────────────────────────── */
 export const ToastContext = createContext(null);
@@ -132,7 +132,7 @@ function ReconProgressModal({ onClose, onComplete }) {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, []);
+  }, [onComplete, addToast]);
 
   useEffect(() => {
     if (done) setPct(100);
@@ -261,19 +261,9 @@ export default function Layout() {
   const [toasts, setToasts]           = useState([]);
   const [showRecon, setShowRecon]     = useState(false);
   const [showNewAudit, setShowNewAudit] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
 
-  // Global ⌘K / Ctrl+K shortcut
-  useEffect(() => {
-    const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setPaletteOpen(true);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+
+
 
   useEffect(() => {
     const handleResize = () => {
@@ -354,7 +344,6 @@ export default function Layout() {
           <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
             <Header
               toggleMobileOpen={() => setMobileOpen(true)}
-              onOpenSearch={() => setPaletteOpen(true)}
             />
 
             <main className="flex-1 overflow-auto bg-[#F8FAFC]">
@@ -367,8 +356,7 @@ export default function Layout() {
           {/* Global Toasts */}
           <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-          {/* Command Palette */}
-          <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+
 
           {/* Reconciliation Progress Modal */}
           {showRecon && <ReconProgressModal onClose={closeRecon} onComplete={handleReconComplete} />}

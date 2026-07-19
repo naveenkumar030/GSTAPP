@@ -877,10 +877,14 @@ async def upload_files(
 
     if gstr2b:
         content = await gstr2b.read()
+        
+        if len(content) > 20 * 1024 * 1024:  # 20 MB limit
+            raise HTTPException(status_code=413, detail="File too large. Maximum size is 20MB.")
+            
         filename = gstr2b.filename or ""
         ext = filename.rsplit(".", 1)[-1].lower()
 
-        if ext != "json":
+        if ext != "json" and gstr2b.content_type != "application/json":
             raise HTTPException(status_code=422, detail="GSTR-2B must be a .json file.")
 
         invoices = parse_gstr2b_json(content)

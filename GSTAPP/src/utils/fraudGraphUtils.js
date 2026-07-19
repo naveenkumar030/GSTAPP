@@ -1,0 +1,163 @@
+export const RISK_META = {
+  High:   { color:'#991B1B', glow:'#EF4444', border:'#DC2626', label:'HIGH',   min:81, icon:'⚠️' },
+  Medium: { color:'#92400E', glow:'#F97316', border:'#EA580C', label:'MEDIUM', min:51, icon:'🔶' },
+  Low:    { color:'#713F12', glow:'#EAB308', border:'#CA8A04', label:'LOW',    min:0,  icon:'🟡' },
+};
+
+export const FRAUD_REL = {
+  DUPLICATE:       { color:'#EF4444', width:3, dash:[]     },
+  FAKE_GSTIN:      { color:'#4B5563', width:2.5, dash:[3,3]  },
+  CIRCULAR_TRADING:{ color:'#8B5CF6', width:3, dash:[7,4]  },
+  MISSING_GSTR2B:  { color:'#F97316', width:2.5, dash:[4,3]  },
+  MISMATCH:        { color:'#DC2626', width:2.5, dash:[]     },
+  SUSPICIOUS:      { color:'#EF4444', width:2, dash:[]     },
+  CONNECTED_TO:    { color:'#9CA3AF', width:1, dash:[]     },
+};
+
+export const NODE_ICON = {
+  Taxpayer: '🏢', Company:'🏢', HighRisk:'⚠️', Invoice:'📄',
+  Supplier:'📦', Buyer:'🛒', GSTR2B:'📊', PurchaseRegister:'🧾', GSTIN:'🔑',
+};
+
+export const TIMELINE_STEPS = [
+  { key:'created',     label:'Invoice Created',      icon:'📄' },
+  { key:'uploaded',    label:'Purchase Uploaded',    icon:'⬆️' },
+  { key:'filed',       label:'GSTR2B Filed',         icon:'📊' },
+  { key:'mismatch',    label:'Mismatch Found',       icon:'⚡' },
+  { key:'detected',    label:'Fraud Detected',       icon:'🚨' },
+  { key:'investigated',label:'Investigation Started',icon:'🔍' },
+];
+
+export function getRiskLevel(score) {
+  if (score == null) return null;
+  if (score > 80) return 'High';
+  if (score > 50) return 'Medium';
+  return 'Low';
+}
+
+export function getNodeDescription(node) {
+  if (!node) return '';
+  const label = node.labelType || node.label || 'Unknown';
+  const name = node.name || node.id;
+  const gstin = node.gstin || '';
+  const state = node.state || '';
+  const score = node.riskScore ?? 0;
+  const status = node.status || '';
+  const amount = node.amount || '';
+  const taxDiff = node.taxDiff || '';
+  const count = node.invoiceCount || 0;
+  const period = node.period || '';
+  const fraudType = node.fraudType || '';
+
+  if (label === 'Company' || label === 'Taxpayer') {
+    return `Central taxpayer profile for ${name}. It is registered in ${state || 'its home state'} under GSTIN ${gstin || 'N/A'}. For this period, it records ${count || 'zero'} invoices totaling ${node.taxAmount || 'N/A'} in Input Tax Credit (ITC) claims.`;
+  }
+  
+  if (label === 'Supplier') {
+    let desc = `Supplier ${name} (GSTIN: ${gstin || 'N/A'}), registered in ${state || 'N/A'}, has transacted ${count} invoice${count !== 1 ? 's' : ''} representing ${node.taxAmount || amount || 'N/A'} in tax value. `;
+    if (score > 50) {
+      desc += `It has a moderate risk score of ${score}/100. Verification checks recommend reconciling all linked invoices.`;
+    } else {
+      desc += `It has a low risk score of ${score}/100 and appears to be compliant.`;
+    }
+    return desc;
+  }
+
+  if (label === 'HighRisk' || label === 'Fraud') {
+    let desc = `High-risk entity ${name} (GSTIN: ${gstin || 'N/A'}) has a risk score of ${score}/100. `;
+    if (fraudType) {
+      desc += `It is flagged for potential ${fraudType} behavior. `;
+    }
+    desc += `It has transacted ${count} invoice${count !== 1 ? 's' : ''} representing ${node.taxAmount || amount || 'N/A'} in tax value, with a tax difference of ${taxDiff || 'N/A'} in disputed filings. Immediate audit recommended.`;
+    return desc;
+  }
+
+  if (label === 'Invoice') {
+    if (status === 'Duplicate') {
+      return `Suspicious invoice ${name} issued by GSTIN ${gstin || 'N/A'} for ${amount || 'N/A'}. It is flagged as DUPLICATE, meaning the same invoice number has been reused to claim double ITC.`;
+    }
+    if (status === 'Missing') {
+      return `Unreconciled invoice ${name} of value ${amount || 'N/A'}. It was declared in the purchase register but is MISSING from GSTR-2B filings, indicating the supplier has not paid the tax.`;
+    }
+    if (status === 'Partial' || status === 'Mismatch') {
+      return `Mismatched invoice ${name} of value ${amount || 'N/A'}. There is a tax difference of ${taxDiff || 'N/A'} between the purchase register and the supplier's GSTR-2B filing.`;
+    }
+    return `Matched invoice ${name} of value ${amount || 'N/A'}, successfully reconciled between GSTR-2B and the purchase register.`;
+  }
+
+  if (label === 'GSTIN') {
+    const statusText = node.type || 'Unknown';
+    return `GSTIN registration ${name} is registered in ${state || 'N/A'}. Current verification status is ${statusText.toUpperCase()} (registered on ${node.regDate || 'N/A'}).`;
+  }
+
+  if (label === 'PurchaseRegister') {
+    return `Internal Purchase Register statement for the period ${period}. It records ${node.totalInvoices || 0} invoices, with ${node.matched || 0} matched and ${node.unmatched || 0} unmatched entries.`;
+  }
+
+  if (label === 'GSTR2B') {
+    return `Auto-populated GSTR-2B statement for ${period} generated by the GST portal. It lists eligible ITC of ${node.totalITC || 'N/A'}, against which your company claimed ${node.claimedITC || 'N/A'}.`;
+  }
+
+  return `Unclassified network node ${name} (Type: ${label}) with risk score ${score}/100.`;
+}
+
+export function processFraudGraphData(raw) {
+  if (!raw || !raw.nodes || !raw.links) {
+    return { nodes: [], links: [] };
+  }
+  
+  // Filter to fraud-only
+  const fraudNodes = raw.nodes.filter(n => (n.riskScore ?? 0) >= 50 || n.label === 'HighRisk');
+  const fraudIds   = new Set(fraudNodes.map(n => n.id));
+
+  // Collect all invoice IDs that are connected to high-risk suppliers
+  const highRiskInvoices = new Set();
+  raw.links.forEach(l => {
+    const sid = l.source?.id ?? l.source;
+    const tid = l.target?.id ?? l.target;
+    if (fraudIds.has(sid) && l.type === 'ISSUED') {
+      highRiskInvoices.add(tid);
+    }
+  });
+
+  const links = raw.links.filter(l => {
+    const sid = l.source?.id ?? l.source;
+    const tid = l.target?.id ?? l.target;
+    return fraudIds.has(sid) || fraudIds.has(tid) ||
+           highRiskInvoices.has(sid) || highRiskInvoices.has(tid) ||
+           ['DUPLICATE','FAKE_GSTIN','CIRCULAR_TRADING','MISMATCH','MISSING_GSTR2B'].includes(l.type);
+  });
+
+  const connectedIds = new Set();
+  links.forEach(l => {
+    connectedIds.add(l.source?.id ?? l.source);
+    connectedIds.add(l.target?.id ?? l.target);
+  });
+
+  const nodes = raw.nodes
+    .filter(n => connectedIds.has(n.id))
+    .map(n => {
+      const rs  = n.riskScore ?? 0;
+      const rl  = getRiskLevel(rs);
+      const meta= rl ? RISK_META[rl] : null;
+      return {
+        ...n,
+        riskLevel: rl || 'Low',
+        size: rs > 80 ? 18 : rs > 50 ? 13 : 9,
+        glowColor: meta?.glow || '#9CA3AF',
+        nodeColor: meta?.color || '#6B7280',
+        borderColor: meta?.border || '#9CA3AF',
+        neighbors: new Set(), links: []
+      };
+    });
+
+  links.forEach(l => {
+    const sid = l.source?.id ?? l.source;
+    const tid = l.target?.id ?? l.target;
+    const sn  = nodes.find(n => n.id === sid);
+    const tn  = nodes.find(n => n.id === tid);
+    if (sn && tn) { sn.neighbors.add(tn.id); tn.neighbors.add(sn.id); }
+  });
+
+  return { nodes, links };
+}

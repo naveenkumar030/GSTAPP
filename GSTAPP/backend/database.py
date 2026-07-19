@@ -9,13 +9,9 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 if not MONGODB_URI:
     raise ValueError("MONGODB_URI is not set in the environment variables.")
 
-# Configure the client to bypass strict SSL verification issues.
-# Use tlsAllowInvalidCertificates=True and tlsAllowInvalidHostnames=True
-# to bypass TLS handshake/verification issues on newer Python SSL stacks.
+# Configure the client securely with standard TLS verification
 client = AsyncIOMotorClient(
     MONGODB_URI,
-    tlsAllowInvalidCertificates=True,
-    tlsAllowInvalidHostnames=True,
     serverSelectionTimeoutMS=30000,
 )
 

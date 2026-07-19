@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, Bell, HelpCircle, ChevronDown, Menu, LogOut, User, Settings, Check } from 'lucide-react';
+import { Bell, HelpCircle, ChevronDown, Menu, LogOut, User, Settings, Check } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { dashboardApi } from '../services/api';
 
@@ -26,13 +26,14 @@ const PAGE_META = {
   reports:         { title: 'Reports',           breadcrumb: 'Analytics' },
   audit:           { title: 'Audit Trail',       breadcrumb: 'Analytics' },
   settings:        { title: 'Settings',          breadcrumb: 'System' },
+  profile:         { title: 'User Profile',      breadcrumb: 'System' },
 };
 
-export default function Header({ toggleMobileOpen, onOpenSearch }) {
+export default function Header({ toggleMobileOpen }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [avatarOpen, setAvatarOpen] = useState(false);
-  const [searchVal, setSearchVal]   = useState('');
+
   const [notifOpen, setNotifOpen]   = useState(false);
   const [fyOpen,    setFyOpen]      = useState(false);
   const [gstinOpen, setGstinOpen]   = useState(false);
@@ -40,7 +41,6 @@ export default function Header({ toggleMobileOpen, onOpenSearch }) {
   const notifRef   = useRef(null);
   const fyRef      = useRef(null);
   const gstinRef   = useRef(null);
-  const searchRef  = useRef(null);
 
   // Dynamic FY & GSTIN state — persisted in localStorage
   const FY_OPTIONS = useMemo(() => generateFYOptions(), []);
@@ -173,36 +173,7 @@ export default function Header({ toggleMobileOpen, onOpenSearch }) {
 
       <div className="hidden md:block divider-v h-8 mx-1" />
 
-      {/* ── Center: search (opens Command Palette) ── */}
-      <div className="flex-1 max-w-md hidden md:block">
-        <button
-          type="button"
-          onClick={onOpenSearch}
-          className="relative group w-full flex items-center gap-2.5 bg-gray-50 border border-gray-200 text-[13px] text-gray-400 rounded-lg pl-9 pr-16 py-2 hover:bg-white hover:border-blue-300 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-left cursor-pointer shadow-sm"
-          aria-label="Open search"
-        >
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-blue-500 transition-colors pointer-events-none"
-          />
-          <span className="flex-1 select-none">Search GSTIN, supplier, invoice, case ID…</span>
-          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none">
-            <kbd className="text-[10px] font-medium text-gray-400 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded font-mono">
-              ⌘K
-            </kbd>
-          </div>
-        </button>
-      </div>
 
-      {/* ── Mobile search icon ── */}
-      <button
-        type="button"
-        onClick={onOpenSearch}
-        className="md:hidden btn-icon border-0 p-2 text-gray-500 hover:text-blue-600"
-        aria-label="Search"
-      >
-        <Search size={19} />
-      </button>
 
       {/* ── Right actions ── */}
       <div className="flex items-center gap-1 sm:gap-1.5 ml-auto">
@@ -384,7 +355,7 @@ export default function Header({ toggleMobileOpen, onOpenSearch }) {
               </div>
               <div className="py-1">
                 <button
-                  onClick={() => { navigate('/dashboard/settings'); setAvatarOpen(false); }}
+                  onClick={() => { navigate('/dashboard/profile'); setAvatarOpen(false); }}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <User size={14} className="text-gray-400" />

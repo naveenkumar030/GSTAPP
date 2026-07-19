@@ -34,3 +34,9 @@ __pycache__/
 **/core_dataset_metadata.json
 temp_core_dataset.csv*
 *.CF348bbC
+
+# Playwright & test output
+playwright-report/
+test-results/
+.lambdatest/
+bandit_report.json

@@ -1,10 +1,11 @@
 import os
 import smtplib
+from fastapi import HTTPException
 import asyncio
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from jose import jwt
 from dotenv import load_dotenv
@@ -12,8 +13,16 @@ from dotenv import load_dotenv
 # Load env vars
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+# Global rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 # Secrets
-JWT_SECRET = os.getenv("JWT_SECRET", "supersecretkey_change_in_production")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise ValueError("JWT_SECRET is not set in the environment variables. Cannot start securely.")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 1 day
 
@@ -50,7 +59,7 @@ def upload_file_to_s3_sync(file_content: bytes, filename: str, content_type: str
             extra_args["ContentType"] = content_type
 
         # Namespace the S3 key by user email so each user's files are isolated
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         if user_email:
             # Sanitize email for use as a folder name (replace @ and . with safe chars)
             safe_email = user_email.replace("@", "_at_").replace(".", "_")
@@ -165,9 +174,9 @@ def get_password_hash(password: str) -> str:
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=ALGORITHM)
     return encoded_jwt
@@ -182,11 +191,11 @@ def decode_access_token(token: str):
 def get_user_email(request) -> str:
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        return "default_user@gstapp.com"
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
     token = auth_header.split(" ")[1]
     payload = decode_access_token(token)
     if not payload or "sub" not in payload:
-        return "default_user@gstapp.com"
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
     return payload["sub"]
 
 def generate_otp() -> str:

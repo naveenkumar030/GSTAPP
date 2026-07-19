@@ -295,7 +295,7 @@ export default function Reports() {
   // Initial load
   useEffect(() => {
     loadData(fyFilter);
-  }, [fyFilter]);
+  }, [fyFilter, loadData]);
 
   // Auto-refresh when new uploads arrive (same tab or cross-tab storage event)
   useEffect(() => {
