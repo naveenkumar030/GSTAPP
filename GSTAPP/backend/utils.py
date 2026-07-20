@@ -241,6 +241,51 @@ def send_email_sync(to_email: str, subject: str, otp_code: str, purpose: str = "
         raise RuntimeError(f"Failed to send OTP email: {str(e)}")
 
 async def send_email_async(to_email: str, subject: str, otp_code: str, purpose: str = "Registration"):
-    """Async wrapper: runs send_email_sync in a thread pool so it doesn't block the event loop."""
+    """
+    Sends email. If BREVO_API_KEY is configured, sends via Brevo HTTP API (ideal for Render Free tier).
+    Otherwise, falls back to SMTP (standard Gmail SMTP).
+    """
+    brevo_api_key = os.getenv("BREVO_API_KEY")
+    if brevo_api_key:
+        # Build HTML email
+        html_body = f"""\
+        <html><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:30px;">
+          <div style="max-width:480px;margin:auto;background:#fff;border-radius:10px;padding:32px;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+            <h2 style="color:#3c2ada;margin-bottom:8px;">GST ReconGraph</h2>
+            <p style="color:#444;font-size:15px;">Your <b>{purpose}</b> OTP code is:</p>
+            <div style="font-size:36px;font-weight:bold;letter-spacing:10px;color:#3c2ada;margin:24px 0;text-align:center;">{otp_code}</div>
+            <p style="color:#888;font-size:12px;">This code expires in <b>15 minutes</b>. Do not share it with anyone.</p>
+            <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+            <p style="color:#aaa;font-size:11px;">If you did not request this, please ignore this email.</p>
+          </div>
+        </body></html>
+        """
+        import httpx
+        try:
+            payload = {
+                "sender": {"email": EMAIL_USER or "mruhevents@gmail.com", "name": "GST ReconGraph"},
+                "to": [{"email": to_email}],
+                "subject": subject,
+                "htmlContent": html_body,
+                "textContent": f"Your OTP is: {otp_code}. It expires in 15 minutes."
+            }
+            headers = {
+                "accept": "application/json",
+                "api-key": brevo_api_key,
+                "content-type": "application/json"
+            }
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post("https://api.brevo.com/v3/smtp/email", json=payload, headers=headers)
+                if res.status_code >= 400:
+                    print(f"Brevo API error: {res.status_code} - {res.text}")
+                    raise RuntimeError(f"Brevo API returned error: {res.text}")
+            print(f"OTP email sent successfully via Brevo to {to_email}")
+            return
+        except Exception as e:
+            print(f"Error sending email via Brevo to {to_email}: {e}")
+            raise RuntimeError(f"Failed to send OTP email: {str(e)}")
+
+    # Fallback to SMTP SSL (runs in thread pool)
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, send_email_sync, to_email, subject, otp_code, purpose)
+
