@@ -2,8 +2,12 @@ services:
   - type: web
     name: gst-recon-graph
     runtime: docker
+    dockerContext: GSTAPP
+    dockerfilePath: GSTAPP/Dockerfile
     plan: free
     envVars:
+      - key: PORT
+        value: 8000
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
