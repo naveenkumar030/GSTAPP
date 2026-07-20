@@ -28,6 +28,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 1 day
 
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
+if EMAIL_PASS:
+    EMAIL_PASS = EMAIL_PASS.replace(" ", "").strip()
+
 
 # AWS Credentials & Config
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
