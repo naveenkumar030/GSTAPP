@@ -15,8 +15,8 @@ client = AsyncIOMotorClient(
     serverSelectionTimeoutMS=30000,
 )
 
-# Target the 'user' database for authentication
-db = client.get_database("user")
+# Target the database specified in the URI, fallback to 'gstrecounciliation_user'
+db = client.get_default_database("gstrecounciliation_user")
 
 # Collections
 users_collection = db.users
