@@ -26,11 +26,27 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 
 # ── CORS — restrict origins explicitly ────────────────────────────────────────
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+_frontend_url_env = os.getenv("FRONTEND_URL", "").strip()
+
+# Build allowed origins: always include localhost dev servers
+_allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+
+# Accept one or more comma-separated URLs from FRONTEND_URL env var
+# e.g.  FRONTEND_URL=http://1.2.3.4  or  FRONTEND_URL=https://myapp.com,http://1.2.3.4
+if _frontend_url_env:
+    for _url in _frontend_url_env.split(","):
+        _url = _url.strip().rstrip("/")
+        if _url and _url not in _allowed_origins:
+            _allowed_origins.append(_url)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL, "http://localhost:3000"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -21,8 +21,9 @@ services:
     env_file:
       - .env
     environment:
-      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/user}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/gstrecounciliation_user}
       - PORT=8000
+      - FRONTEND_URL=${FRONTEND_URL:-}
     volumes:
       - app_data:/app/backend/data
     depends_on:

@@ -914,6 +914,23 @@ async def run_reconciliation(request: Request):
     Stores results in MongoDB.
     Returns aggregate summary.
     """
+    try:
+        return await _run_reconciliation_impl(request)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        import traceback
+        logger.error("Unhandled error in run_reconciliation:\n%s", traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"Reconciliation failed: {type(exc).__name__}: {exc}"
+        )
+
+
+async def _run_reconciliation_impl(request: Request):  # noqa: C901
+    """
+    Internal reconciliation logic extracted so the router can catch all exceptions.
+    """
     user_email = get_user_email(request)
     g2b_doc = await uploads_col.find_one({"type": "gstr2b", "user_email": user_email})
 

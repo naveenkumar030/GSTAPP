@@ -6,7 +6,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import random
 from datetime import datetime, timedelta, timezone
-from passlib.context import CryptContext
+# NOTE: passlib CryptContext intentionally removed — it crashes with bcrypt>=4.0
+# Password hashing/verification uses the raw bcrypt module directly (see below).
 from jose import jwt
 from dotenv import load_dotenv
 
