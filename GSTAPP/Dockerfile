@@ -50,4 +50,4 @@ EXPOSE 8000
 WORKDIR /app/backend
 
 # Command to run uvicorn (Render automatically injects PORT)
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT}
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips="*"

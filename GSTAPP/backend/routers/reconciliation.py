@@ -20,33 +20,8 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 import openpyxl
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
 from utils import upload_file_to_s3_async, download_file_from_s3_async, delete_file_from_s3_async, get_user_email
-
-# ── Environment ───────────────────────────────────────────────────────────────
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
-
-
-
-MONGODB_URI = os.getenv("MONGODB_URI")
-if not MONGODB_URI:
-    raise ValueError("MONGODB_URI is not set")
-
-client = AsyncIOMotorClient(
-    MONGODB_URI,
-    tlsAllowInvalidCertificates=True,
-    tlsAllowInvalidHostnames=True,
-    serverSelectionTimeoutMS=30000,
-)
-try:
-    db = client.get_default_database()
-except Exception:
-    db = client.get_database("gstrecounciliation_user")
-
-recon_results_col = db.reconciliation_results
-recon_runs_col    = db.reconciliation_runs
-uploads_col       = db.uploads
+from database import recon_results_col, recon_runs_col, uploads_col
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

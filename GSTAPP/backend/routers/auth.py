@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, HTTPException
 from database import users_collection, otps_collection
 from models import RegisterRequest, VerifyOTPRequest, LoginRequest, ResetPasswordRequest, ResetPasswordVerifyRequest, GoogleLoginRequest
-from utils import get_password_hash, verify_password, create_access_token, generate_otp, send_email_async, limiter
+from utils import get_password_hash, verify_password, create_access_token, generate_otp, send_email_async, limiter, ACCESS_TOKEN_EXPIRE_MINUTES
 from fastapi import Request
 from datetime import datetime, timedelta, timezone
 
@@ -22,49 +22,57 @@ async def register(request: Request, req: RegisterRequest):
     if not req.fullName or not req.fullName.strip():
         raise HTTPException(status_code=422, detail="Full name is required")
 
-    existing_user = await users_collection.find_one({"email": req.email})
-    if existing_user and existing_user.get("active", False):
-        raise HTTPException(status_code=400, detail="User already registered with this email")
-
-    hashed_pw = get_password_hash(req.password)
-
-    # Store user as inactive
-    if not existing_user:
-        await users_collection.insert_one({
-            "name": req.fullName.strip(),
-            "email": req.email,
-            "password": hashed_pw,
-            "active": False,
-            "created_at": utcnow()
-        })
-    else:
-        await users_collection.update_one(
-            {"email": req.email},
-            {"$set": {"name": req.fullName.strip(), "password": hashed_pw, "active": False}}
-        )
-
-    # Generate OTP and store it
-    otp = generate_otp()
-    await otps_collection.update_one(
-        {"email": req.email},
-        {"$set": {"otp": otp, "expires_at": utcnow() + timedelta(minutes=15)}},
-        upsert=True
-    )
-
-    # Send email — awaited directly so any failure returns a 500 with a clear message
     try:
-        await send_email_async(
-            req.email,
-            "Your OTP for GST ReconGraph Registration",
-            otp,
-            "Registration"
-        )
-    except RuntimeError as e:
-        # Email failed — clean up the OTP record so user can retry
-        await otps_collection.delete_one({"email": req.email})
-        raise HTTPException(status_code=500, detail=str(e))
+        existing_user = await users_collection.find_one({"email": req.email})
+        if existing_user and existing_user.get("active", False):
+            raise HTTPException(status_code=400, detail="User already registered with this email")
 
-    return {"message": "OTP sent successfully. Please check your email and enter the 6-digit code."}
+        hashed_pw = get_password_hash(req.password)
+
+        # Store user as inactive
+        if not existing_user:
+            await users_collection.insert_one({
+                "name": req.fullName.strip(),
+                "email": req.email,
+                "password": hashed_pw,
+                "active": False,
+                "created_at": utcnow()
+            })
+        else:
+            await users_collection.update_one(
+                {"email": req.email},
+                {"$set": {"name": req.fullName.strip(), "password": hashed_pw, "active": False}}
+            )
+
+        # Generate OTP and store it
+        otp = generate_otp()
+        await otps_collection.update_one(
+            {"email": req.email},
+            {"$set": {"otp": otp, "expires_at": utcnow() + timedelta(minutes=15)}},
+            upsert=True
+        )
+
+        # Send email — awaited directly so any failure returns a 500 with a clear message
+        try:
+            await send_email_async(
+                req.email,
+                "Your OTP for GST ReconGraph Registration",
+                otp,
+                "Registration"
+            )
+        except Exception as e:
+            # Email failed — clean up the OTP record so user can retry
+            await otps_collection.delete_one({"email": req.email})
+            raise HTTPException(status_code=500, detail=f"Email delivery failed: {str(e)}")
+
+        return {"message": "OTP sent successfully. Please check your email and enter the 6-digit code."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Registration error: {str(e)}")
+
 
 @router.post("/verify-otp")
 @limiter.limit("10/minute")
@@ -96,13 +104,13 @@ async def verify_otp(request: Request, req: VerifyOTPRequest):
 @limiter.limit("10/minute")
 async def login(request: Request, req: LoginRequest):
     user = await users_collection.find_one({"email": req.email})
-    if not user or not verify_password(req.password, user["password"]):
+    if not user or not verify_password(req.password, user.get("password", "")):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.get("active", True):
         raise HTTPException(status_code=400, detail="Please verify your email first before logging in")
 
-    token = create_access_token({"sub": req.email}, timedelta(days=1))
+    token = create_access_token({"sub": req.email}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     return {
         "token": token,
         "message": "Login successful",
@@ -219,7 +227,7 @@ async def google_login(req: GoogleLoginRequest):
             await users_collection.update_one({"email": email}, {"$set": {"active": True}})
             user["active"] = True
 
-    token = create_access_token({"sub": email}, timedelta(days=1))
+    token = create_access_token({"sub": email}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     return {
         "token": token,
         "message": "Google Login successful",

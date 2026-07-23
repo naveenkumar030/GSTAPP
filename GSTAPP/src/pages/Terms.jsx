@@ -63,7 +63,7 @@ Data Residency:
 Data Retention:
 • Active subscription: Data retained for the duration of the subscription plus 90 days.
 • Upon cancellation: Data is available for export for 30 days, then permanently deleted.
-• You may request data deletion at any time by contacting privacy@gstrecon.in.`,
+• You may request data deletion at any time by contacting bayyanaveen15@gmail.com.`,
   },
   {
     id: 'security',
@@ -82,7 +82,7 @@ Security Certifications & Practices:
 
 Your Responsibilities:
 • You are responsible for maintaining the confidentiality of your account credentials.
-• You must promptly notify us of any unauthorized access or security breach at security@gstrecon.in.
+• You must promptly notify us of any unauthorized access or security breach at bayyanaveen15@gmail.com.
 • You must not share your account credentials with unauthorized individuals.
 • You are responsible for all activities that occur under your account.
 
@@ -155,7 +155,7 @@ Our aggregate liability to you for any claim arising under these Terms shall not
     color: 'text-gray-600',
     bg: 'bg-gray-50',
     content: `Termination by You:
-You may cancel your subscription at any time through the Platform settings or by contacting support@gstrecon.in. Cancellation takes effect at the end of your current billing period. No refunds are provided for unused portions of a billing period unless required by law.
+You may cancel your subscription at any time through the Platform settings or by contacting bayyanaveen15@gmail.com. Cancellation takes effect at the end of your current billing period. No refunds are provided for unused portions of a billing period unless required by law.
 
 Termination by Us:
 We may suspend or terminate your account immediately, without notice, if:
@@ -176,7 +176,7 @@ Upon termination, your right to use the Platform ceases immediately. We will pro
     content: `These Terms are governed by and construed in accordance with the laws of India.
 
 Dispute Resolution Process:
-1. Informal Resolution: In the event of any dispute, the parties agree to first attempt to resolve it informally by contacting legal@gstrecon.in.
+1. Informal Resolution: In the event of any dispute, the parties agree to first attempt to resolve it informally by contacting bayyanaveen15@gmail.com.
 2. Mediation: If informal resolution fails within 30 days, either party may initiate mediation through a mutually agreed mediator in Mumbai.
 3. Arbitration: Unresolved disputes shall be settled by binding arbitration in accordance with the Arbitration and Conciliation Act, 1996, with a single arbitrator seated in Mumbai, Maharashtra.
 4. Courts: Both parties submit to the exclusive jurisdiction of the courts in Mumbai, Maharashtra for any matter not subject to arbitration.
@@ -191,21 +191,9 @@ Class Action Waiver: You agree to resolve disputes only on an individual basis a
     bg: 'bg-blue-50',
     content: `If you have questions about these Terms, our Privacy Policy, or your data, please contact us:
 
-GST ReconGraph Technologies Pvt. Ltd.
-Legal & Compliance Team
-📧 legal@gstrecon.in
-📧 privacy@gstrecon.in
-📧 support@gstrecon.in
-
-📍 Level 12, One BKC Tower,
-   Bandra-Kurla Complex,
-   Mumbai — 400 051
-   Maharashtra, India
-
-📞 +91 22 6789 0000 (Mon–Fri, 9 AM – 6 PM IST)
-
-For security incidents: security@gstrecon.in
-For data deletion requests: privacy@gstrecon.in`,
+Naveen Kumar
+📞 6305996739
+📧 bayyanaveen15@gmail.com`,
   },
 ];
 
@@ -395,8 +383,8 @@ export default function Terms() {
               </div>
               <p className="text-[11px] text-slate-600 mt-5">
                 Questions? Email us at{' '}
-                <a href="mailto:legal@gstrecon.in" className="text-slate-400 hover:text-white underline">
-                  legal@gstrecon.in
+                <a href="mailto:bayyanaveen15@gmail.com" className="text-slate-400 hover:text-white underline">
+                  bayyanaveen15@gmail.com
                 </a>
               </p>
             </motion.div>

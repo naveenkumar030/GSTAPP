@@ -128,7 +128,17 @@ export default function Register() {
       });
       const ct = res.headers.get('content-type') || '';
       const data = ct.includes('application/json') ? await res.json() : { detail: await res.text() };
-      if (!res.ok) throw new Error(data.detail || data.message || 'Failed to send OTP');
+      if (!res.ok) {
+        let detailMsg = 'Failed to send OTP';
+        if (typeof data.detail === 'string') {
+          detailMsg = data.detail;
+        } else if (Array.isArray(data.detail) && data.detail.length > 0) {
+          detailMsg = data.detail.map(d => d.msg || d.detail || JSON.stringify(d)).join(', ');
+        } else if (data.message) {
+          detailMsg = data.message;
+        }
+        throw new Error(detailMsg);
+      }
       setOtpSent(true);
       setOtp(['', '', '', '', '', '']); // Clear/Reset OTP boxes
       setSuccessMsg('OTP sent! Check your email for the 6-digit code.');

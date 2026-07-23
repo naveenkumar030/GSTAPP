@@ -59,7 +59,7 @@ if os.path.exists(dist_dir):
     if os.path.exists(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-    # Serve other files in dist (e.g. favicon.svg, icons.svg, etc.) or SPA routing
+    # Serve other files in dist (e.g. logo.png, etc.) or SPA routing
     @app.get("/{catchall:path}")
     async def serve_spa(catchall: str):
         # Prevent catching API/docs routes

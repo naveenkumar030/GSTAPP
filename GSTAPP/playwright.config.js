@@ -5,6 +5,9 @@ import path from 'path';
 // .env is in the root directory, so default config works.
 dotenv.config();
 
+const baseURL = process.env.BASE_URL || 'http://localhost:5173';
+const isLocal = baseURL.includes('localhost') || baseURL.includes('127.0.0.1');
+
 const capabilities = {
   'browserName': 'Chrome', // This acts as a default but is overridden by project specific browserName in connectOptions if needed
   'browserVersion': 'latest',
@@ -17,8 +20,8 @@ const capabilities = {
     'network': true,
     'video': true,
     'console': true,
-    'tunnel': true, // Use LambdaTest Tunnel to test local application
-    'tunnelName': process.env.LT_TUNNEL_NAME || '' 
+    'tunnel': isLocal, // Use LambdaTest Tunnel only to test local application
+    'tunnelName': isLocal ? (process.env.LT_TUNNEL_NAME || 'GST-App-Tunnel') : ''
   }
 };
 
@@ -38,7 +41,7 @@ export default defineConfig({
   use: {
     actionTimeout: 15000,
     trace: 'on-first-retry',
-    baseURL: 'http://localhost:5173', // The frontend URL directly. No backend redirect is needed.
+    baseURL: baseURL, // The frontend URL dynamically resolved
   },
 
   projects: [

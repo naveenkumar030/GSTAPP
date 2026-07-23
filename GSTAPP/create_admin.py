@@ -24,7 +24,7 @@ async def create_admin():
         tlsAllowInvalidHostnames=True,
         serverSelectionTimeoutMS=15000,
     )
-    db = client.get_database("user")
+    db = client.get_default_database("gstrecounciliation_user")
     users = db.users
 
     hashed = bcrypt.hashpw(PASSWORD.encode(), bcrypt.gensalt()).decode()

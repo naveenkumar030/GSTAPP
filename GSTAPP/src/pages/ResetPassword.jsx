@@ -181,7 +181,7 @@ export default function ResetPassword() {
 
         <div className="relative z-10">
           <p className="text-[11px] text-slate-500">
-            For critical lockouts, contact security@gstrecon.in
+            For critical lockouts, contact bayyanaveen15@gmail.com
           </p>
         </div>
       </motion.div>

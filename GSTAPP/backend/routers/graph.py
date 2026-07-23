@@ -1,29 +1,9 @@
 import os
 from fastapi import APIRouter, Request
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
 from utils import get_user_email
+from database import recon_results_col
 
 router = APIRouter()
-
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
-
-MONGODB_URI = os.getenv("MONGODB_URI")
-if not MONGODB_URI:
-    raise ValueError("MONGODB_URI is not set")
-
-client = AsyncIOMotorClient(
-    MONGODB_URI,
-    tlsAllowInvalidCertificates=True,
-    tlsAllowInvalidHostnames=True,
-    serverSelectionTimeoutMS=30000,
-)
-try:
-    db = client.get_default_database()
-except Exception:
-    db = client.get_database("gstrecounciliation_user")
-
-recon_results_col = db.reconciliation_results
 
 # Map reconciliation status → graph link type & fraud label shown in UI
 STATUS_TO_LINK = {

@@ -1,0 +1,39 @@
+services:
+  mongodb:
+    image: mongo:4.4
+    container_name: gstapp_mongodb
+    restart: always
+    volumes:
+      - mongo_data:/data/db
+    # We do not expose port 27017 to the host for security.
+    # It will only be accessible to the "web" service within the docker network.
+    networks:
+      - gstapp_net
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gstapp_web
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/user}
+      - PORT=8000
+    volumes:
+      - app_data:/app/backend/data
+    depends_on:
+      - mongodb
+    networks:
+      - gstapp_net
+
+volumes:
+  mongo_data:
+  app_data:
+
+networks:
+  gstapp_net:
+    driver: bridge
